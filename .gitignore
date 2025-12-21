@@ -1,0 +1,40 @@
+# Rust
+/target/
+**/*.rs.bk
+Cargo.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# WASM build output
+/pkg/
+/crates/kraken-wasm/pkg/
+
+# Environment
+.env
+.env.local
+*.pem
+*.key
+
+# Test artifacts
+*.log
+coverage/
+
+# Node (for WASM testing)
+node_modules/
+
+# Spec/documentation files (not part of SDK)
+claude.md
+krakenapiv2guide.md
+*.spec.md
+
+# Claude Code
+.claude/

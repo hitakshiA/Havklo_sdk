@@ -1,0 +1,16 @@
+[package]
+name = "kraken-sdk"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "High-level SDK for Kraken WebSocket API v2"
+
+[dependencies]
+kraken-types = { workspace = true }
+kraken-book = { workspace = true }
+kraken-ws = { workspace = true }
+tokio = { workspace = true }
+futures = { workspace = true }
+typed-builder = { workspace = true }
+tracing = { workspace = true }

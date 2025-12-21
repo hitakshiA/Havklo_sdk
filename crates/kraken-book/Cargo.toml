@@ -1,0 +1,20 @@
+[package]
+name = "kraken-book"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "WASM-compatible orderbook engine for Kraken"
+
+[dependencies]
+kraken-types = { workspace = true }
+rust_decimal = { workspace = true }
+crc32fast = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+# NO tokio, NO networking - must compile to WASM
+
+[dev-dependencies]
+rust_decimal_macros = { workspace = true }
