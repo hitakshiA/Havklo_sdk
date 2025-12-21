@@ -8,15 +8,19 @@
 //! Uninitialized → AwaitingSnapshot → Synced ↔ Desynchronized
 //! ```
 
-use crate::{checksum::compute_checksum, storage::TreeBook};
+use crate::{
+    checksum::{compute_checksum_with_precision, DEFAULT_PRICE_PRECISION, DEFAULT_QTY_PRECISION},
+    storage::TreeBook,
+};
 use kraken_types::{BookData, Level};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
 /// Orderbook synchronization state
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum OrderbookState {
     /// No subscription, no data
+    #[default]
     Uninitialized,
     /// Subscribed, waiting for snapshot
     AwaitingSnapshot,
@@ -26,11 +30,6 @@ pub enum OrderbookState {
     Desynchronized,
 }
 
-impl Default for OrderbookState {
-    fn default() -> Self {
-        Self::Uninitialized
-    }
-}
 
 /// Checksum mismatch error
 #[derive(Debug, Clone)]
@@ -78,6 +77,10 @@ pub struct Orderbook {
     state: OrderbookState,
     /// Subscribed depth
     depth: u32,
+    /// Price precision (decimal places) for checksum calculation
+    price_precision: u8,
+    /// Quantity precision (decimal places) for checksum calculation
+    qty_precision: u8,
 }
 
 impl Orderbook {
@@ -89,6 +92,8 @@ impl Orderbook {
             last_checksum: 0,
             state: OrderbookState::Uninitialized,
             depth: 10, // Default depth
+            price_precision: DEFAULT_PRICE_PRECISION,
+            qty_precision: DEFAULT_QTY_PRECISION,
         }
     }
 
@@ -100,7 +105,28 @@ impl Orderbook {
             last_checksum: 0,
             state: OrderbookState::Uninitialized,
             depth,
+            price_precision: DEFAULT_PRICE_PRECISION,
+            qty_precision: DEFAULT_QTY_PRECISION,
         }
+    }
+
+    /// Set the precision values (from instrument channel)
+    ///
+    /// This should be called before applying any book data to ensure
+    /// correct checksum validation.
+    pub fn set_precision(&mut self, price_precision: u8, qty_precision: u8) {
+        self.price_precision = price_precision;
+        self.qty_precision = qty_precision;
+    }
+
+    /// Get the current price precision
+    pub fn price_precision(&self) -> u8 {
+        self.price_precision
+    }
+
+    /// Get the current quantity precision
+    pub fn qty_precision(&self) -> u8 {
+        self.qty_precision
     }
 
     /// Get the symbol
@@ -263,7 +289,12 @@ impl Orderbook {
     fn validate_checksum(&mut self, expected: u32) -> Result<(), ChecksumMismatch> {
         let bids = self.storage.bids_vec();
         let asks = self.storage.asks_vec();
-        let computed = compute_checksum(&bids, &asks);
+        let computed = compute_checksum_with_precision(
+            &bids,
+            &asks,
+            self.price_precision,
+            self.qty_precision,
+        );
 
         if computed != expected {
             self.state = OrderbookState::Desynchronized;
@@ -356,6 +387,7 @@ impl OrderbookSnapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::checksum::compute_checksum;
     use rust_decimal_macros::dec;
 
     fn make_book_data(bids: Vec<(f64, f64)>, asks: Vec<(f64, f64)>) -> BookData {
@@ -368,7 +400,7 @@ mod tests {
             .map(|(p, q)| Level::from_f64(p, q))
             .collect();
 
-        // Compute the checksum
+        // Compute the checksum with default precision
         let checksum = compute_checksum(&bids, &asks);
 
         BookData {

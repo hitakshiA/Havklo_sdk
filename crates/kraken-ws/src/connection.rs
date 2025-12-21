@@ -8,7 +8,7 @@ use crate::subscription::{Subscription, SubscriptionManager};
 use dashmap::DashMap;
 use futures_util::{SinkExt, StreamExt};
 use kraken_book::Orderbook;
-use kraken_types::{Depth, KrakenError, MethodResponse, WsMessage};
+use kraken_types::{Channel, Depth, KrakenError, MethodResponse, WsMessage};
 use parking_lot::RwLock;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Arc;
@@ -256,22 +256,20 @@ impl KrakenConnection {
         while let Some(msg_result) = read.next().await {
             match msg_result {
                 Ok(Message::Text(text)) => {
-                    if let Ok(ws_msg) = WsMessage::parse(&text) {
-                        if let WsMessage::Status(status_msg) = ws_msg {
-                            if let Some(data) = status_msg.data.first() {
-                                info!(
-                                    "Connected to Kraken API {} (connection_id: {})",
-                                    data.api_version, data.connection_id
-                                );
+                    if let Ok(WsMessage::Status(status_msg)) = WsMessage::parse(&text) {
+                        if let Some(data) = status_msg.data.first() {
+                            info!(
+                                "Connected to Kraken API {} (connection_id: {})",
+                                data.api_version, data.connection_id
+                            );
 
-                                self.emit(ConnectionEvent::Connected {
-                                    api_version: data.api_version.clone(),
-                                    connection_id: data.connection_id,
-                                });
+                            self.emit(ConnectionEvent::Connected {
+                                api_version: data.api_version.clone(),
+                                connection_id: data.connection_id,
+                            });
 
-                                connected = true;
-                                break;
-                            }
+                            connected = true;
+                            break;
                         }
                     }
                 }
@@ -295,8 +293,45 @@ impl KrakenConnection {
         *self.state.write() = ConnectionState::Connected;
         self.reconnect_attempt.store(0, Ordering::Relaxed);
 
-        // Send subscription requests
+        // Subscribe to instrument channel first to get precision info
+        // This is needed for correct checksum calculation
         let requests = self.subscriptions.write().restoration_requests();
+
+        // Collect symbols from pending book subscriptions
+        let book_symbols: Vec<String> = requests
+            .iter()
+            .filter_map(|(_, req)| {
+                if req.params.channel == Channel::Book {
+                    Some(req.params.symbol.clone())
+                } else {
+                    None
+                }
+            })
+            .flatten()
+            .collect();
+
+        // Subscribe to instrument channel if we have symbols
+        if !book_symbols.is_empty() {
+            let instrument_request = serde_json::json!({
+                "method": "subscribe",
+                "params": {
+                    "channel": "instrument",
+                    "snapshot": true
+                }
+            });
+            let json = instrument_request.to_string();
+            debug!("Sending instrument subscription: {}", json);
+            write
+                .send(Message::Text(json))
+                .await
+                .map_err(|e| KrakenError::WebSocket(e.to_string()))?;
+
+            // Wait briefly for instrument data to arrive
+            // This ensures we have precision info before processing book data
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
+
+        // Send subscription requests
         for (_req_id, request) in &requests {
             let json = serde_json::to_string(request).map_err(|e| {
                 KrakenError::InvalidJson {
@@ -421,6 +456,25 @@ impl KrakenConnection {
                 WsMessage::Ohlc(_) => {
                     // TODO: Handle OHLC updates
                     debug!("OHLC update received");
+                }
+                WsMessage::Instrument(instrument_msg) => {
+                    // Update precision for each symbol from instrument data
+                    for data in &instrument_msg.data {
+                        let symbol = &data.symbol;
+
+                        // Get or create orderbook and update its precision
+                        let mut orderbook =
+                            self.orderbooks.entry(symbol.clone()).or_insert_with(|| {
+                                Orderbook::with_depth(symbol, self.config.depth as u32)
+                            });
+
+                        orderbook.set_precision(data.price_precision, data.qty_precision);
+
+                        debug!(
+                            "Updated precision for {}: price={}, qty={}",
+                            symbol, data.price_precision, data.qty_precision
+                        );
+                    }
                 }
                 WsMessage::Heartbeat => {
                     self.emit(MarketEvent::Heartbeat);

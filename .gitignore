@@ -32,9 +32,5 @@ coverage/
 node_modules/
 
 # Spec/documentation files (not part of SDK)
-claude.md
-krakenapiv2guide.md
 *.spec.md
-
-# Claude Code
-.claude/
+*.guide.md

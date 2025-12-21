@@ -67,10 +67,11 @@ impl Side {
 }
 
 /// Orderbook depth levels
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub enum Depth {
     /// 10 price levels per side
     #[serde(rename = "10")]
+    #[default]
     D10 = 10,
     /// 25 price levels per side
     #[serde(rename = "25")]
@@ -93,11 +94,6 @@ impl Depth {
     }
 }
 
-impl Default for Depth {
-    fn default() -> Self {
-        Self::D10
-    }
-}
 
 /// Order types
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -186,20 +182,16 @@ impl std::fmt::Display for SystemStatus {
 }
 
 /// Ticker event trigger
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum TickerTrigger {
     /// Trigger on trades
+    #[default]
     Trades,
     /// Trigger on best bid/offer changes
     Bbo,
 }
 
-impl Default for TickerTrigger {
-    fn default() -> Self {
-        Self::Trades
-    }
-}
 
 #[cfg(test)]
 mod tests {

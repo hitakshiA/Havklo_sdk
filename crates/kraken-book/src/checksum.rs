@@ -6,13 +6,24 @@
 //!
 //! 1. Use top 10 levels only (regardless of subscribed depth)
 //! 2. Process asks first (sorted low→high), then bids (sorted high→low)
-//! 3. For each level: remove decimal point, strip leading zeros
+//! 3. For each level: format with correct precision, remove decimal point, strip leading zeros
 //! 4. Concatenate all: asks_string + bids_string
 //! 5. Apply standard CRC32 (ISO 3309, polynomial 0xEDB88320)
+//!
+//! # Important: Precision
+//!
+//! Kraken v2 API sends prices and quantities as JSON floats. The precision information
+//! must be obtained from the instrument channel to correctly format values for checksum.
 
 use crc32fast::Hasher;
 use kraken_types::Level;
 use rust_decimal::Decimal;
+
+/// Default price precision if not specified (BTC/USD typically has 1)
+pub const DEFAULT_PRICE_PRECISION: u8 = 1;
+
+/// Default quantity precision if not specified (typically 8)
+pub const DEFAULT_QTY_PRECISION: u8 = 8;
 
 /// Compute Kraken's CRC32 checksum for orderbook validation
 ///
@@ -20,11 +31,18 @@ use rust_decimal::Decimal;
 ///
 /// * `bids` - Bid levels sorted high to low (best bid first)
 /// * `asks` - Ask levels sorted low to high (best ask first)
+/// * `price_precision` - Number of decimal places for prices (from instrument channel)
+/// * `qty_precision` - Number of decimal places for quantities (from instrument channel)
 ///
 /// # Returns
 ///
 /// The CRC32 checksum as a u32
-pub fn compute_checksum(bids: &[Level], asks: &[Level]) -> u32 {
+pub fn compute_checksum_with_precision(
+    bids: &[Level],
+    asks: &[Level],
+    price_precision: u8,
+    qty_precision: u8,
+) -> u32 {
     let mut hasher = Hasher::new();
 
     // Take top 10 of each side
@@ -33,16 +51,16 @@ pub fn compute_checksum(bids: &[Level], asks: &[Level]) -> u32 {
 
     // Process asks first (already sorted low to high)
     for ask in &top_asks {
-        let price_str = format_for_checksum(&ask.price);
-        let qty_str = format_for_checksum(&ask.qty);
+        let price_str = format_for_checksum_with_precision(&ask.price, price_precision);
+        let qty_str = format_for_checksum_with_precision(&ask.qty, qty_precision);
         hasher.update(price_str.as_bytes());
         hasher.update(qty_str.as_bytes());
     }
 
     // Then bids (already sorted high to low)
     for bid in &top_bids {
-        let price_str = format_for_checksum(&bid.price);
-        let qty_str = format_for_checksum(&bid.qty);
+        let price_str = format_for_checksum_with_precision(&bid.price, price_precision);
+        let qty_str = format_for_checksum_with_precision(&bid.qty, qty_precision);
         hasher.update(price_str.as_bytes());
         hasher.update(qty_str.as_bytes());
     }
@@ -50,13 +68,65 @@ pub fn compute_checksum(bids: &[Level], asks: &[Level]) -> u32 {
     hasher.finalize()
 }
 
-/// Format a decimal for checksum: remove decimal point, strip leading zeros
+/// Compute checksum with default precision (for backwards compatibility)
 ///
-/// Examples:
-/// - 45285.2 → "452852"
-/// - 0.00100000 → "100000"
-/// - 0.05005 → "5005"
-fn format_for_checksum(value: &Decimal) -> String {
+/// Uses DEFAULT_PRICE_PRECISION (1) and DEFAULT_QTY_PRECISION (8)
+pub fn compute_checksum(bids: &[Level], asks: &[Level]) -> u32 {
+    compute_checksum_with_precision(bids, asks, DEFAULT_PRICE_PRECISION, DEFAULT_QTY_PRECISION)
+}
+
+/// Format a decimal for checksum with specified precision
+///
+/// The value is formatted with exactly `precision` decimal places, then:
+/// 1. Remove the decimal point
+/// 2. Strip leading zeros
+///
+/// # Examples
+///
+/// With price_precision=1:
+/// - 88813.5 → "888135" → "888135"
+///
+/// With qty_precision=8:
+/// - 0.00460208 → "0.00460208" → "000460208" → "460208"
+/// - 0.001 → "0.00100000" → "000100000" → "100000"
+fn format_for_checksum_with_precision(value: &Decimal, precision: u8) -> String {
+    use rust_decimal::prelude::ToPrimitive;
+
+    // Format with exact precision
+    // We need to round/truncate to the specified precision
+    let scale = Decimal::new(1, precision as u32);
+    let rounded = (value / scale).round() * scale;
+
+    // Format with the exact number of decimal places
+    let formatted = if precision == 0 {
+        format!("{}", rounded.trunc())
+    } else {
+        // Get the value as a string with proper precision
+        let f = rounded.to_f64().unwrap_or(0.0);
+        format!("{:.prec$}", f, prec = precision as usize)
+    };
+
+    // Remove the decimal point
+    let without_decimal = formatted.replace('.', "");
+
+    // Strip leading zeros
+    let trimmed = without_decimal.trim_start_matches('0');
+
+    // If all zeros, return "0"
+    if trimmed.is_empty() {
+        "0".to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+/// Format a decimal for checksum without precision (legacy behavior)
+///
+/// This uses the Decimal's natural string representation.
+/// For live API use, prefer `format_for_checksum_with_precision` with
+/// precision values from the instrument channel.
+#[allow(dead_code)]
+fn format_for_checksum_legacy(value: &Decimal) -> String {
     let s = value.to_string();
 
     // Remove the decimal point
@@ -100,12 +170,27 @@ mod tests {
     use rust_decimal_macros::dec;
 
     #[test]
-    fn test_format_for_checksum() {
-        assert_eq!(format_for_checksum(&dec!(45285.2)), "452852");
-        assert_eq!(format_for_checksum(&dec!(0.00100000)), "100000");
-        assert_eq!(format_for_checksum(&dec!(0.05005)), "5005");
-        assert_eq!(format_for_checksum(&dec!(1.5)), "15");
-        assert_eq!(format_for_checksum(&dec!(100)), "100");
+    fn test_format_for_checksum_legacy() {
+        // Test the legacy format function (natural decimal representation)
+        assert_eq!(format_for_checksum_legacy(&dec!(45285.2)), "452852");
+        assert_eq!(format_for_checksum_legacy(&dec!(0.00100000)), "100000");
+        assert_eq!(format_for_checksum_legacy(&dec!(0.05005)), "5005");
+        assert_eq!(format_for_checksum_legacy(&dec!(1.5)), "15");
+        assert_eq!(format_for_checksum_legacy(&dec!(100)), "100");
+        assert_eq!(format_for_checksum_legacy(&dec!(0.001)), "1");
+    }
+
+    #[test]
+    fn test_format_for_checksum_with_precision() {
+        // Test precision-aware formatting (for live API)
+        // With price_precision=1 (like BTC/USD)
+        assert_eq!(format_for_checksum_with_precision(&dec!(88813.5), 1), "888135");
+        assert_eq!(format_for_checksum_with_precision(&dec!(88813.0), 1), "888130");
+
+        // With qty_precision=8 (typical for most pairs)
+        assert_eq!(format_for_checksum_with_precision(&dec!(0.00460208), 8), "460208");
+        assert_eq!(format_for_checksum_with_precision(&dec!(0.001), 8), "100000");
+        assert_eq!(format_for_checksum_with_precision(&dec!(2.85806499), 8), "285806499");
     }
 
     #[test]

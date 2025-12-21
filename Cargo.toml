@@ -57,3 +57,6 @@ kraken-types = { path = "crates/kraken-types" }
 kraken-book = { path = "crates/kraken-book" }
 kraken-ws = { path = "crates/kraken-ws" }
 kraken-sdk = { path = "crates/kraken-sdk" }
+
+# Benchmarking
+criterion = "0.5"

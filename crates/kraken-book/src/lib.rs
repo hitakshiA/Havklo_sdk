@@ -25,7 +25,10 @@ pub mod orderbook;
 pub mod storage;
 
 // Re-export main types
-pub use checksum::{compute_checksum, ChecksumResult};
+pub use checksum::{
+    compute_checksum, compute_checksum_with_precision, ChecksumResult,
+    DEFAULT_PRICE_PRECISION, DEFAULT_QTY_PRECISION,
+};
 pub use history::{HistoryBuffer, TimestampedSnapshot};
 pub use orderbook::{ApplyResult, ChecksumMismatch, Orderbook, OrderbookSnapshot, OrderbookState};
 pub use storage::TreeBook;

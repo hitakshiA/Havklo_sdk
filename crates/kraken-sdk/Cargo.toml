@@ -19,6 +19,7 @@ dashmap = { workspace = true }
 
 [dev-dependencies]
 tracing-subscriber = { workspace = true }
+rust_decimal_macros = { workspace = true }
 
 [[example]]
 name = "simple_ticker"

@@ -330,6 +330,36 @@ pub struct OhlcData {
     pub interval: u32,
 }
 
+/// Instrument data from the instrument channel
+/// Used to get price and quantity precision for checksum calculation
+#[derive(Debug, Clone, Deserialize)]
+pub struct InstrumentData {
+    /// Trading pair symbol (e.g., "BTC/USD")
+    pub symbol: String,
+    /// Price precision (number of decimal places)
+    pub price_precision: u8,
+    /// Quantity precision (number of decimal places)
+    pub qty_precision: u8,
+    /// Price increment (minimum price step)
+    #[serde(default)]
+    pub price_increment: Option<Decimal>,
+    /// Quantity increment (minimum qty step)
+    #[serde(default)]
+    pub qty_increment: Option<Decimal>,
+    /// Minimum order quantity
+    #[serde(default)]
+    pub qty_min: Option<Decimal>,
+    /// Asset (base currency)
+    #[serde(default)]
+    pub asset: Option<String>,
+    /// Quote currency
+    #[serde(default)]
+    pub quote: Option<String>,
+    /// Trading status
+    #[serde(default)]
+    pub status: Option<String>,
+}
+
 // ============================================================================
 // Convenience Type Aliases
 // ============================================================================
@@ -348,6 +378,9 @@ pub type TradeMessage = ChannelMessage<TradeData>;
 
 /// OHLC message type
 pub type OhlcMessage = ChannelMessage<OhlcData>;
+
+/// Instrument message type
+pub type InstrumentMessage = ChannelMessage<InstrumentData>;
 
 // ============================================================================
 // Raw Message Parsing
@@ -368,6 +401,8 @@ pub enum WsMessage {
     Trade(TradeMessage),
     /// OHLC channel update
     Ohlc(OhlcMessage),
+    /// Instrument channel update (provides precision info)
+    Instrument(InstrumentMessage),
     /// Heartbeat message
     Heartbeat,
     /// Unknown/unsupported message
@@ -411,6 +446,10 @@ impl WsMessage {
             Some("ohlc") => {
                 let msg: OhlcMessage = serde_json::from_value(value)?;
                 Ok(Self::Ohlc(msg))
+            }
+            Some("instrument") => {
+                let msg: InstrumentMessage = serde_json::from_value(value)?;
+                Ok(Self::Instrument(msg))
             }
             Some("heartbeat") => Ok(Self::Heartbeat),
             _ => Ok(Self::Unknown(value)),
