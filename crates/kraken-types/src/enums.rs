@@ -172,6 +172,19 @@ pub enum SystemStatus {
     Maintenance,
 }
 
+impl std::fmt::Display for SystemStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Online => write!(f, "online"),
+            Self::CancelOnly => write!(f, "cancel_only"),
+            Self::PostOnly => write!(f, "post_only"),
+            Self::LimitOnly => write!(f, "limit_only"),
+            Self::ReduceOnly => write!(f, "reduce_only"),
+            Self::Maintenance => write!(f, "maintenance"),
+        }
+    }
+}
+
 /// Ticker event trigger
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]

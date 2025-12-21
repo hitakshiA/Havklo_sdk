@@ -368,9 +368,14 @@ pub enum WsMessage {
     Trade(TradeMessage),
     /// OHLC channel update
     Ohlc(OhlcMessage),
+    /// Heartbeat message
+    Heartbeat,
     /// Unknown/unsupported message
     Unknown(serde_json::Value),
 }
+
+/// Type alias for backwards compatibility and clarity
+pub type SubscribeResponse = MethodResponse;
 
 impl WsMessage {
     /// Parse a raw JSON message
@@ -407,6 +412,7 @@ impl WsMessage {
                 let msg: OhlcMessage = serde_json::from_value(value)?;
                 Ok(Self::Ohlc(msg))
             }
+            Some("heartbeat") => Ok(Self::Heartbeat),
             _ => Ok(Self::Unknown(value)),
         }
     }
