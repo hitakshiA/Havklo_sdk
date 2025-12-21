@@ -13,6 +13,7 @@ crate-type = ["cdylib", "rlib"]
 kraken-book = { workspace = true }
 kraken-types = { workspace = true }
 wasm-bindgen = { workspace = true }
+serde = { workspace = true }
 serde-wasm-bindgen = { workspace = true }
 console_error_panic_hook = { workspace = true }
 rust_decimal = { workspace = true }
