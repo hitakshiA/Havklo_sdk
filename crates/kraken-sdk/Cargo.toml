@@ -14,3 +14,5 @@ tokio = { workspace = true }
 futures = { workspace = true }
 typed-builder = { workspace = true }
 tracing = { workspace = true }
+rust_decimal = { workspace = true }
+dashmap = { workspace = true }
