@@ -16,3 +16,15 @@ typed-builder = { workspace = true }
 tracing = { workspace = true }
 rust_decimal = { workspace = true }
 dashmap = { workspace = true }
+
+[dev-dependencies]
+tracing-subscriber = { workspace = true }
+
+[[example]]
+name = "simple_ticker"
+
+[[example]]
+name = "orderbook_stream"
+
+[[example]]
+name = "multi_symbol"
