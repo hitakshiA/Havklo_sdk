@@ -20,3 +20,10 @@ rust_decimal = { workspace = true }
 
 [package.metadata.wasm-pack.profile.release]
 wasm-opt = ["-O3"]
+
+[package.metadata.wasm-pack.profile.dev]
+wasm-opt = false
+
+# NPM package configuration
+[package.metadata.wasm-pack]
+name = "@kraken-forge/wasm"
