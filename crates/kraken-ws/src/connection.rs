@@ -15,7 +15,7 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::time::{timeout, Duration};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, instrument, warn};
 
 /// WebSocket connection state
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -157,24 +157,28 @@ impl KrakenConnection {
     }
 
     /// Subscribe to orderbook updates for symbols
+    #[instrument(skip(self), fields(symbols = ?symbols))]
     pub fn subscribe_orderbook(&self, symbols: Vec<String>) -> u64 {
         let sub = Subscription::orderbook(symbols, self.config.depth);
         self.subscriptions.write().add(sub)
     }
 
     /// Subscribe to ticker updates
+    #[instrument(skip(self), fields(symbols = ?symbols))]
     pub fn subscribe_ticker(&self, symbols: Vec<String>) -> u64 {
         let sub = Subscription::ticker(symbols);
         self.subscriptions.write().add(sub)
     }
 
     /// Subscribe to trade updates
+    #[instrument(skip(self), fields(symbols = ?symbols))]
     pub fn subscribe_trade(&self, symbols: Vec<String>) -> u64 {
         let sub = Subscription::trade(symbols);
         self.subscriptions.write().add(sub)
     }
 
     /// Connect and run the connection loop
+    #[instrument(skip(self), name = "kraken_connection")]
     pub async fn connect_and_run(&self) -> Result<(), KrakenError> {
         loop {
             if self.shutdown.load(Ordering::Relaxed) {
@@ -518,7 +522,9 @@ impl KrakenConnection {
     }
 
     /// Request shutdown
+    #[instrument(skip(self))]
     pub fn shutdown(&self) {
+        info!("Shutdown requested");
         self.shutdown.store(true, Ordering::Relaxed);
         *self.state.write() = ConnectionState::ShuttingDown;
     }

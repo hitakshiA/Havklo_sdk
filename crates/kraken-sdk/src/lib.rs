@@ -23,7 +23,7 @@
 //!     }
 //!
 //!     // Process events
-//!     let mut events = client.events();
+//!     let mut events = client.events().unwrap();
 //!     while let Some(event) = events.recv().await {
 //!         match event {
 //!             Event::Market(MarketEvent::OrderbookUpdate { symbol, snapshot }) => {

@@ -7,7 +7,7 @@ use kraken_ws::{ConnectionState, Event, KrakenConnection};
 use rust_decimal::Decimal;
 use std::sync::Arc;
 use tokio::sync::mpsc;
-use tracing::info;
+use tracing::{info, instrument};
 
 /// High-level client for Kraken WebSocket API
 ///
@@ -33,7 +33,7 @@ use tracing::info;
 ///     }
 ///
 ///     // Process events
-///     let mut events = client.events();
+///     let mut events = client.events().unwrap();
 ///     while let Some(event) = events.recv().await {
 ///         println!("{:?}", event);
 ///     }
@@ -118,13 +118,13 @@ impl KrakenClient {
     /// Take the event receiver (can only be called once)
     ///
     /// Returns the event stream for processing market data and connection events.
-    pub fn events(&mut self) -> mpsc::UnboundedReceiver<Event> {
-        self.event_rx
-            .take()
-            .expect("events() can only be called once")
+    /// Returns `None` if `events()` has already been called.
+    pub fn events(&mut self) -> Option<mpsc::UnboundedReceiver<Event>> {
+        self.event_rx.take()
     }
 
     /// Request graceful shutdown
+    #[instrument(skip(self))]
     pub fn shutdown(&self) {
         self.connection.shutdown();
     }
@@ -132,6 +132,7 @@ impl KrakenClient {
 
 impl KrakenClientBuilder {
     /// Connect to Kraken and return a client
+    #[instrument(skip(self), fields(symbols = ?self.symbols))]
     pub async fn connect(self) -> Result<KrakenClient, KrakenError> {
         // Validate configuration
         if self.symbols.is_empty() {

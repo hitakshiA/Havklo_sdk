@@ -21,7 +21,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Connected! Waiting for orderbook data...");
 
     // Get event stream
-    let mut events = client.events();
+    let mut events = client.events().expect("events() already called");
 
     // Process events for 10 seconds
     let timeout = tokio::time::sleep(Duration::from_secs(10));

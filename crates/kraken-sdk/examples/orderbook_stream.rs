@@ -19,7 +19,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Streaming orderbook updates for BTC/USD (depth: 25)...\n");
 
-    let mut events = client.events();
+    let mut events = client.events().expect("events() already called");
     let mut update_count = 0;
     let max_updates = 50;
 

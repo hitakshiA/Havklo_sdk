@@ -22,7 +22,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .connect()
         .await?;
 
-    let mut events = client.events();
+    let mut events = client.events().expect("events() already called");
     let mut spreads: HashMap<String, Decimal> = HashMap::new();
     let mut snapshot_received = 0;
 
