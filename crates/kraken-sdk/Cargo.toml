@@ -46,3 +46,6 @@ name = "orderbook_stream"
 
 [[example]]
 name = "multi_symbol"
+
+[[example]]
+name = "advanced_reconnect"
