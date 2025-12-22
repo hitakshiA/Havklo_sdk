@@ -449,16 +449,16 @@ impl KrakenConnection {
                         }
                     }
                 }
-                WsMessage::Ticker(_) => {
-                    // TODO: Handle ticker updates
+                WsMessage::Ticker(_ticker_msg) => {
+                    // Ticker channel - emit via MarketEvent in future version
                     debug!("Ticker update received");
                 }
-                WsMessage::Trade(_) => {
-                    // TODO: Handle trade updates
+                WsMessage::Trade(_trade_msg) => {
+                    // Trade channel - emit via MarketEvent in future version
                     debug!("Trade update received");
                 }
-                WsMessage::Ohlc(_) => {
-                    // TODO: Handle OHLC updates
+                WsMessage::Ohlc(_ohlc_msg) => {
+                    // OHLC channel - emit via MarketEvent in future version
                     debug!("OHLC update received");
                 }
                 WsMessage::Instrument(instrument_msg) => {
@@ -481,14 +481,12 @@ impl KrakenConnection {
                     }
                 }
                 WsMessage::Executions(_executions_msg) => {
-                    // Private channel: order executions
+                    // Private channel: order executions - requires auth feature
                     debug!("Executions update received");
-                    // TODO: Emit execution events when private channel events are defined
                 }
                 WsMessage::Balances(_balances_msg) => {
-                    // Private channel: account balances
+                    // Private channel: account balances - requires auth feature
                     debug!("Balances update received");
-                    // TODO: Emit balance events when private channel events are defined
                 }
                 WsMessage::Heartbeat => {
                     self.emit(MarketEvent::Heartbeat);

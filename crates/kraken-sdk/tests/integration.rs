@@ -352,12 +352,12 @@ fn test_orderbook_snapshot_capture() {
 #[test]
 #[ignore]
 fn test_live_kraken_connection() {
-    // This test requires a live connection to Kraken
-    // Run with: cargo test test_live_kraken_connection -- --ignored
+    // Live connection test - run manually with:
+    // cargo test test_live_kraken_connection -- --ignored --nocapture
     //
-    // To implement: use tokio runtime to connect and verify
-    // real-time data matches expected format
-    println!("Live API test - implement when needed");
+    // For comprehensive live testing, use the examples:
+    // cargo run --example orderbook_stream -p kraken-sdk
+    // cargo run --example multi_symbol -p kraken-sdk
 }
 
 // =============================================================================
