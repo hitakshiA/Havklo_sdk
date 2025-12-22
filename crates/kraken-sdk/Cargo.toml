@@ -9,6 +9,7 @@ description = "High-level SDK for Kraken WebSocket API v2"
 [features]
 default = []
 metrics = ["prometheus", "lazy_static"]
+auth = ["reqwest", "hmac", "sha2", "base64"]
 
 [dependencies]
 kraken-types = { workspace = true }
@@ -20,10 +21,18 @@ typed-builder = { workspace = true }
 tracing = { workspace = true }
 rust_decimal = { workspace = true }
 dashmap = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
 
 # Optional metrics dependencies
 prometheus = { version = "0.14", optional = true }
 lazy_static = { version = "1.5", optional = true }
+
+# Authentication
+reqwest = { version = "0.12", features = ["json"], optional = true }
+hmac = { version = "0.12", optional = true }
+sha2 = { version = "0.10", optional = true }
+base64 = { version = "0.22", optional = true }
 
 [dev-dependencies]
 tracing-subscriber = { workspace = true }

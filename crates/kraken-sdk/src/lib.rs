@@ -52,6 +52,9 @@ pub mod prelude;
 #[cfg(feature = "metrics")]
 pub mod metrics;
 
+#[cfg(feature = "auth")]
+pub mod auth;
+
 // Re-export main types
 pub use builder::KrakenClientBuilder;
 pub use client::KrakenClient;

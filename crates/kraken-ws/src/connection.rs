@@ -480,6 +480,16 @@ impl KrakenConnection {
                         );
                     }
                 }
+                WsMessage::Executions(_executions_msg) => {
+                    // Private channel: order executions
+                    debug!("Executions update received");
+                    // TODO: Emit execution events when private channel events are defined
+                }
+                WsMessage::Balances(_balances_msg) => {
+                    // Private channel: account balances
+                    debug!("Balances update received");
+                    // TODO: Emit balance events when private channel events are defined
+                }
                 WsMessage::Heartbeat => {
                     self.emit(MarketEvent::Heartbeat);
                 }

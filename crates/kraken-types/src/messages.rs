@@ -114,6 +114,42 @@ impl SubscribeParams {
             token: None,
         }
     }
+
+    /// Create executions subscription params (private channel)
+    ///
+    /// Requires a valid WebSocket token from the TokenManager.
+    pub fn executions(token: String) -> Self {
+        Self {
+            channel: Channel::Executions,
+            symbol: vec![],
+            depth: None,
+            snapshot: Some(true),
+            interval: None,
+            event_trigger: None,
+            token: Some(token),
+        }
+    }
+
+    /// Create balances subscription params (private channel)
+    ///
+    /// Requires a valid WebSocket token from the TokenManager.
+    pub fn balances(token: String) -> Self {
+        Self {
+            channel: Channel::Balances,
+            symbol: vec![],
+            depth: None,
+            snapshot: Some(true),
+            interval: None,
+            event_trigger: None,
+            token: Some(token),
+        }
+    }
+
+    /// Set the authentication token for private channels
+    pub fn with_token(mut self, token: String) -> Self {
+        self.token = Some(token);
+        self
+    }
 }
 
 /// Unsubscribe request message
@@ -410,6 +446,86 @@ pub struct InstrumentMessage {
 pub type InstrumentData = InstrumentPair;
 
 // ============================================================================
+// Private Channel Data Types
+// ============================================================================
+
+/// Execution/trade data from the executions channel (private)
+#[derive(Debug, Clone, Deserialize)]
+pub struct ExecutionData {
+    /// Execution type (e.g., "trade", "settled")
+    #[serde(rename = "exec_type")]
+    pub exec_type: String,
+    /// Order ID
+    pub order_id: String,
+    /// Execution ID
+    #[serde(default)]
+    pub exec_id: Option<String>,
+    /// Trade ID (if applicable)
+    #[serde(default)]
+    pub trade_id: Option<u64>,
+    /// Trading pair symbol
+    pub symbol: String,
+    /// Order side
+    pub side: Side,
+    /// Order type
+    pub order_type: String,
+    /// Order quantity
+    #[serde(default)]
+    pub order_qty: Option<Decimal>,
+    /// Limit price
+    #[serde(default)]
+    pub limit_price: Option<Decimal>,
+    /// Last executed quantity
+    #[serde(default)]
+    pub last_qty: Option<Decimal>,
+    /// Last executed price
+    #[serde(default)]
+    pub last_price: Option<Decimal>,
+    /// Cumulative quantity filled
+    #[serde(default)]
+    pub cum_qty: Option<Decimal>,
+    /// Average fill price
+    #[serde(default)]
+    pub avg_price: Option<Decimal>,
+    /// Fee paid
+    #[serde(default)]
+    pub fee_paid: Option<Decimal>,
+    /// Fee currency
+    #[serde(default)]
+    pub fee_currency: Option<String>,
+    /// Order status
+    #[serde(default)]
+    pub order_status: Option<String>,
+    /// Timestamp
+    pub timestamp: String,
+}
+
+/// Balance data from the balances channel (private)
+#[derive(Debug, Clone, Deserialize)]
+pub struct BalanceData {
+    /// Asset identifier (e.g., "BTC", "USD")
+    pub asset: String,
+    /// Available balance (for trading/withdrawal)
+    pub balance: Decimal,
+    /// Balance on hold (in open orders)
+    #[serde(default)]
+    pub hold_trade: Option<Decimal>,
+}
+
+/// Wallet balance snapshot
+#[derive(Debug, Clone, Deserialize)]
+pub struct WalletData {
+    /// List of asset balances
+    pub balances: Vec<BalanceData>,
+    /// Wallet type
+    #[serde(default)]
+    pub wallet_type: Option<String>,
+    /// Wallet ID
+    #[serde(default)]
+    pub wallet_id: Option<String>,
+}
+
+// ============================================================================
 // Convenience Type Aliases
 // ============================================================================
 
@@ -427,6 +543,12 @@ pub type TradeMessage = ChannelMessage<TradeData>;
 
 /// OHLC message type
 pub type OhlcMessage = ChannelMessage<OhlcData>;
+
+/// Executions message type (private)
+pub type ExecutionsMessage = ChannelMessage<ExecutionData>;
+
+/// Balances message type (private)
+pub type BalancesMessage = ChannelMessage<WalletData>;
 
 // Note: InstrumentMessage is defined as a separate struct above
 // because its data structure differs from other channel messages
@@ -452,6 +574,10 @@ pub enum WsMessage {
     Ohlc(OhlcMessage),
     /// Instrument channel update (provides precision info)
     Instrument(InstrumentMessage),
+    /// Executions channel update (private - requires auth)
+    Executions(ExecutionsMessage),
+    /// Balances channel update (private - requires auth)
+    Balances(BalancesMessage),
     /// Heartbeat message
     Heartbeat,
     /// Unknown/unsupported message
@@ -499,6 +625,14 @@ impl WsMessage {
             Some("instrument") => {
                 let msg: InstrumentMessage = serde_json::from_value(value)?;
                 Ok(Self::Instrument(msg))
+            }
+            Some("executions") => {
+                let msg: ExecutionsMessage = serde_json::from_value(value)?;
+                Ok(Self::Executions(msg))
+            }
+            Some("balances") => {
+                let msg: BalancesMessage = serde_json::from_value(value)?;
+                Ok(Self::Balances(msg))
             }
             Some("heartbeat") => Ok(Self::Heartbeat),
             _ => Ok(Self::Unknown(value)),
