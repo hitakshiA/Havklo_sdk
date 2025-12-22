@@ -6,6 +6,10 @@ license.workspace = true
 authors.workspace = true
 description = "High-level SDK for Kraken WebSocket API v2"
 
+[features]
+default = []
+metrics = ["prometheus", "lazy_static"]
+
 [dependencies]
 kraken-types = { workspace = true }
 kraken-book = { workspace = true }
@@ -16,6 +20,10 @@ typed-builder = { workspace = true }
 tracing = { workspace = true }
 rust_decimal = { workspace = true }
 dashmap = { workspace = true }
+
+# Optional metrics dependencies
+prometheus = { version = "0.14", optional = true }
+lazy_static = { version = "1.5", optional = true }
 
 [dev-dependencies]
 tracing-subscriber = { workspace = true }
