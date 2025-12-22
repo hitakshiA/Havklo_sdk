@@ -330,10 +330,32 @@ pub struct OhlcData {
     pub interval: u32,
 }
 
-/// Instrument data from the instrument channel
+/// Asset data from the instrument channel
+#[derive(Debug, Clone, Deserialize)]
+pub struct InstrumentAsset {
+    /// Asset identifier (e.g., "BTC", "USD")
+    pub id: String,
+    /// Asset status
+    #[serde(default)]
+    pub status: Option<String>,
+    /// Precision (number of decimal places)
+    #[serde(default)]
+    pub precision: Option<u8>,
+    /// Display precision
+    #[serde(default)]
+    pub precision_display: Option<u8>,
+    /// Whether asset is borrowable
+    #[serde(default)]
+    pub borrowable: Option<bool>,
+    /// Collateral value
+    #[serde(default)]
+    pub collateral_value: Option<Decimal>,
+}
+
+/// Trading pair data from the instrument channel
 /// Used to get price and quantity precision for checksum calculation
 #[derive(Debug, Clone, Deserialize)]
-pub struct InstrumentData {
+pub struct InstrumentPair {
     /// Trading pair symbol (e.g., "BTC/USD")
     pub symbol: String,
     /// Price precision (number of decimal places)
@@ -349,9 +371,9 @@ pub struct InstrumentData {
     /// Minimum order quantity
     #[serde(default)]
     pub qty_min: Option<Decimal>,
-    /// Asset (base currency)
+    /// Base asset
     #[serde(default)]
-    pub asset: Option<String>,
+    pub base: Option<String>,
     /// Quote currency
     #[serde(default)]
     pub quote: Option<String>,
@@ -359,6 +381,33 @@ pub struct InstrumentData {
     #[serde(default)]
     pub status: Option<String>,
 }
+
+/// Instrument channel data structure
+/// Contains both assets and trading pairs information
+#[derive(Debug, Clone, Deserialize)]
+pub struct InstrumentChannelData {
+    /// List of assets
+    #[serde(default)]
+    pub assets: Vec<InstrumentAsset>,
+    /// List of trading pairs
+    #[serde(default)]
+    pub pairs: Vec<InstrumentPair>,
+}
+
+/// Instrument channel message (has different structure than other channels)
+#[derive(Debug, Clone, Deserialize)]
+pub struct InstrumentMessage {
+    /// Channel name
+    pub channel: String,
+    /// Message type: "snapshot" or "update"
+    #[serde(rename = "type")]
+    pub msg_type: String,
+    /// Instrument data containing assets and pairs
+    pub data: InstrumentChannelData,
+}
+
+/// Alias for backwards compatibility
+pub type InstrumentData = InstrumentPair;
 
 // ============================================================================
 // Convenience Type Aliases
@@ -379,8 +428,8 @@ pub type TradeMessage = ChannelMessage<TradeData>;
 /// OHLC message type
 pub type OhlcMessage = ChannelMessage<OhlcData>;
 
-/// Instrument message type
-pub type InstrumentMessage = ChannelMessage<InstrumentData>;
+// Note: InstrumentMessage is defined as a separate struct above
+// because its data structure differs from other channel messages
 
 // ============================================================================
 // Raw Message Parsing

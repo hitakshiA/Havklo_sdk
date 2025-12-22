@@ -458,9 +458,9 @@ impl KrakenConnection {
                     debug!("OHLC update received");
                 }
                 WsMessage::Instrument(instrument_msg) => {
-                    // Update precision for each symbol from instrument data
-                    for data in &instrument_msg.data {
-                        let symbol = &data.symbol;
+                    // Update precision for each trading pair from instrument data
+                    for pair in &instrument_msg.data.pairs {
+                        let symbol = &pair.symbol;
 
                         // Get or create orderbook and update its precision
                         let mut orderbook =
@@ -468,11 +468,11 @@ impl KrakenConnection {
                                 Orderbook::with_depth(symbol, self.config.depth as u32)
                             });
 
-                        orderbook.set_precision(data.price_precision, data.qty_precision);
+                        orderbook.set_precision(pair.price_precision, pair.qty_precision);
 
                         debug!(
                             "Updated precision for {}: price={}, qty={}",
-                            symbol, data.price_precision, data.qty_precision
+                            symbol, pair.price_precision, pair.qty_precision
                         );
                     }
                 }

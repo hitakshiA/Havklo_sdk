@@ -219,7 +219,7 @@ mod tests {
         let level1 = Level::new(dec!(100), dec!(1));
         let level2 = Level::new(dec!(101), dec!(2));
 
-        let checksum1 = compute_checksum(&[level1.clone()], &[level2.clone()]);
+        let checksum1 = compute_checksum(std::slice::from_ref(&level1), std::slice::from_ref(&level2));
         let checksum2 = compute_checksum(&[level2], &[level1]);
 
         // Different order should give different checksum
