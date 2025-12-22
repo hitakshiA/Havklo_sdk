@@ -1,5 +1,9 @@
 # Havklo SDK
 
+[![CI](https://github.com/havklo/havklo-sdk/workflows/CI/badge.svg)](https://github.com/havklo/havklo-sdk/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Rust](https://img.shields.io/badge/rust-1.70%2B-blue.svg)](https://www.rust-lang.org)
+
 A production-grade Rust SDK for Kraken's WebSocket API v2, built with a focus on correctness, performance, and cross-platform compatibility.
 
 ## Why This SDK
