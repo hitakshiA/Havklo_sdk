@@ -1,0 +1,37 @@
+[package]
+name = "kraken-futures-ws"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "WebSocket client for Kraken Futures API"
+
+[features]
+default = []
+
+[dependencies]
+# Workspace dependencies
+serde = { workspace = true }
+serde_json = { workspace = true }
+rust_decimal = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+futures = { workspace = true }
+futures-util = { workspace = true }
+tokio = { workspace = true }
+tokio-tungstenite = { workspace = true }
+kraken-types = { workspace = true }
+kraken-book = { workspace = true }
+
+# Auth
+hmac = "0.12"
+sha2 = "0.10"
+base64 = "0.21"
+
+# Utilities
+dashmap = { workspace = true }
+parking_lot = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

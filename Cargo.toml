@@ -5,6 +5,7 @@ members = [
     "crates/kraken-book",
     "crates/kraken-ws",
     "crates/kraken-rest",
+    "crates/kraken-futures-ws",
     "crates/kraken-sdk",
     "crates/kraken-wasm",
 ]
@@ -58,6 +59,7 @@ kraken-types = { path = "crates/kraken-types" }
 kraken-book = { path = "crates/kraken-book" }
 kraken-ws = { path = "crates/kraken-ws" }
 kraken-rest = { path = "crates/kraken-rest" }
+kraken-futures-ws = { path = "crates/kraken-futures-ws" }
 kraken-sdk = { path = "crates/kraken-sdk" }
 
 # Benchmarking
