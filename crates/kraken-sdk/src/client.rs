@@ -3,10 +3,9 @@
 use crate::builder::KrakenClientBuilder;
 use kraken_book::Orderbook;
 use kraken_types::KrakenError;
-use kraken_ws::{ConnectionState, Event, KrakenConnection};
+use kraken_ws::{ConnectionState, EventReceiver, KrakenConnection};
 use rust_decimal::Decimal;
 use std::sync::Arc;
-use tokio::sync::mpsc;
 use tracing::{info, instrument};
 
 /// High-level client for Kraken WebSocket API
@@ -45,7 +44,7 @@ pub struct KrakenClient {
     /// Underlying connection
     connection: Arc<KrakenConnection>,
     /// Event receiver
-    event_rx: Option<mpsc::UnboundedReceiver<Event>>,
+    event_rx: Option<EventReceiver>,
     /// Configured symbols
     symbols: Vec<String>,
 }
@@ -119,8 +118,15 @@ impl KrakenClient {
     ///
     /// Returns the event stream for processing market data and connection events.
     /// Returns `None` if `events()` has already been called.
-    pub fn events(&mut self) -> Option<mpsc::UnboundedReceiver<Event>> {
+    pub fn events(&mut self) -> Option<EventReceiver> {
         self.event_rx.take()
+    }
+
+    /// Get the number of events dropped due to backpressure
+    ///
+    /// Only meaningful when using bounded channels with DropNewest policy.
+    pub fn dropped_event_count(&self) -> u64 {
+        self.connection.dropped_event_count()
     }
 
     /// Request graceful shutdown

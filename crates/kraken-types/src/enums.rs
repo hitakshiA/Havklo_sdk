@@ -23,6 +23,9 @@ pub enum Channel {
     Balances,
     /// Status channel - system status
     Status,
+    /// Level 3 orders channel - individual orders (requires special access)
+    #[serde(rename = "level3")]
+    Level3,
 }
 
 impl Channel {
@@ -37,12 +40,18 @@ impl Channel {
             Self::Executions => "executions",
             Self::Balances => "balances",
             Self::Status => "status",
+            Self::Level3 => "level3",
         }
     }
 
     /// Returns true if this is a private (authenticated) channel
     pub fn is_private(&self) -> bool {
         matches!(self, Self::Executions | Self::Balances)
+    }
+
+    /// Returns true if this is the L3 channel (requires special endpoint)
+    pub fn is_l3(&self) -> bool {
+        matches!(self, Self::Level3)
     }
 }
 

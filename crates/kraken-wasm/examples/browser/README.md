@@ -1,4 +1,4 @@
-# Kraken SDK Browser Demo
+# Havklo SDK Browser Demo
 
 This example demonstrates using the Kraken WASM SDK in a browser environment, featuring:
 

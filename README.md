@@ -4,123 +4,113 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Rust](https://img.shields.io/badge/rust-1.70%2B-blue.svg)](https://www.rust-lang.org)
 
-A production-grade Rust SDK for Kraken's APIs, featuring WebSocket streaming (Spot + Futures), REST trading, L2/L3 orderbooks, and browser support via WebAssembly.
+A high-performance Rust SDK for Kraken's WebSocket APIs. Built for algorithmic trading, market making, and real-time data streaming with sub-microsecond orderbook operations.
 
-## Why This SDK
+## Features
 
-Most exchange SDKs suffer from common problems: floating-point precision errors, missing data validation, and poor reconnection handling. Havklo SDK addresses these directly:
+- **Zero-copy parsing** with sub-microsecond orderbook updates
+- **L2 + L3 orderbooks** with queue position tracking
+- **CRC32 checksum validation** on every update
+- **WebSocket trading** - place, amend, cancel orders without REST
+- **Automatic reconnection** with exponential backoff and circuit breaker
+- **Browser support** via WebAssembly
+- **Financial precision** using `rust_decimal` (no floating point errors)
 
-**Financial Precision**: All prices and quantities use `rust_decimal` instead of f64. This prevents the subtle rounding errors that can accumulate in trading applications.
+## Performance
 
-**Data Integrity**: Every orderbook update is validated against Kraken's CRC32 checksum. If data becomes corrupted or out of sync, the SDK detects it immediately.
+All benchmarks run on Apple M1 Pro. Numbers represent median times.
 
-**Complete Platform Coverage**: Spot WebSocket, Futures WebSocket, and REST API - all in one SDK. Trade perpetual swaps, check balances, place orders, and stream real-time data.
+### Orderbook Operations
 
-**L3 Orderbook**: Order-level depth with queue position tracking. Know exactly where your order sits in the book and estimate fill probability.
+| Operation | Latency | Throughput |
+|-----------|---------|------------|
+| Best bid/ask lookup | **1.0 ns** | 1,000,000,000/s |
+| Spread calculation | **3.5 ns** | 285,000,000/s |
+| Mid-price calculation | **22.7 ns** | 44,000,000/s |
+| Snapshot capture | **81.6 ns** | 12,250,000/s |
+| Apply delta update | **~100 ns** | 10,000,000/s |
+| Apply full snapshot (100 levels) | **10.0 µs** | 100,000/s |
+| Checksum validation | **5.9 µs** | 169,000/s |
 
-**Production Ready**: Client-side rate limiting, automatic token refresh, comprehensive error handling, and Prometheus-ready metrics.
+### Message Parsing
 
-**Browser Support**: The orderbook engine compiles to WebAssembly. Run the same Rust code in browsers for trading interfaces.
+| Operation | Latency | Throughput |
+|-----------|---------|------------|
+| Parse subscription response | **538 ns** | 1,860,000/s |
+| Parse orderbook update | **1.1 µs** | 920,000/s |
+| Parse orderbook snapshot | **2.7 µs** | 370,000/s |
+| Parse scientific notation | **3.5 µs** | 286,000/s |
 
-## Installation
+### L3 Orderbook (Order-Level)
 
-Add to your `Cargo.toml`:
-
-```toml
-[dependencies]
-kraken-sdk = { git = "https://github.com/havklo/havklo-sdk" }
-tokio = { version = "1", features = ["full"] }
-
-# For REST API trading
-kraken-rest = { git = "https://github.com/havklo/havklo-sdk" }
-
-# For Futures trading
-kraken-futures-ws = { git = "https://github.com/havklo/havklo-sdk" }
-```
+| Operation | Latency | Throughput |
+|-----------|---------|------------|
+| Best bid/ask | **1.0 ns** | 1,000,000,000/s |
+| VWAP (1 BTC) | **28 ns** | 35,700,000/s |
+| VWAP (10 BTC) | **155 ns** | 6,450,000/s |
+| Add order | **~150 ns** | 6,600,000/s |
+| Remove order | **~200 ns** | 5,000,000/s |
+| Queue position | **~30 ns** | 33,000,000/s |
+| Full snapshot | **23.7 µs** | 42,000/s |
 
 ## Quick Start
 
-### WebSocket Streaming
+Add to `Cargo.toml`:
+
+```toml
+[dependencies]
+kraken-sdk = { git = "https://github.com/havklo/kraken-sdk" }
+tokio = { version = "1", features = ["full"] }
+```
+
+Stream BTC/USD orderbook:
 
 ```rust
 use kraken_sdk::prelude::*;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut client = KrakenClient::builder(["BTC/USD"])
+    let client = KrakenClient::builder(vec!["BTC/USD".into()])
         .with_depth(Depth::D10)
+        .with_book(true)
+        .connect()
+        .await?;
+
+    // Access real-time market data
+    loop {
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+
+        if let Some(spread) = client.spread("BTC/USD") {
+            println!("BTC/USD spread: {}", spread);
+        }
+
+        if let Some(bid) = client.best_bid("BTC/USD") {
+            println!("Best bid: {}", bid);
+        }
+    }
+}
+```
+
+Process events:
+
+```rust
+use kraken_sdk::prelude::*;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let client = KrakenClient::builder(vec!["BTC/USD".into()])
+        .with_book(true)
         .connect()
         .await?;
 
     let mut events = client.events();
-
-    while let Some(event) = events.recv().await {
-        if let Event::Market(MarketEvent::OrderbookUpdate { symbol, .. }) = event {
-            println!(
-                "{}: bid={} ask={} spread={}",
-                symbol,
-                client.best_bid(&symbol).unwrap_or_default(),
-                client.best_ask(&symbol).unwrap_or_default(),
-                client.spread(&symbol).unwrap_or_default()
-            );
-        }
-    }
-
-    Ok(())
-}
-```
-
-### REST API Trading
-
-```rust
-use kraken_rest::{KrakenRestClient, Credentials};
-use kraken_rest::types::{OrderRequest, OrderSide};
-use rust_decimal_macros::dec;
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Public endpoints (no auth required)
-    let client = KrakenRestClient::new();
-
-    let tickers = client.get_ticker("XBTUSD").await?;
-    println!("BTC price: ${}", tickers["XXBTZUSD"].last_price().unwrap());
-
-    // Private endpoints (auth required)
-    let auth_client = KrakenRestClient::with_credentials(
-        Credentials::new(api_key, api_secret)?
-    );
-
-    let balances = auth_client.get_balance().await?;
-    let order = OrderRequest::limit("XBTUSD", OrderSide::Buy, dec!(0.001), dec!(50000));
-    let result = auth_client.add_order(&order).await?;
-
-    Ok(())
-}
-```
-
-### Futures Streaming
-
-```rust
-use kraken_futures_ws::{FuturesConnection, FuturesConfig, FuturesEvent};
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let config = FuturesConfig::new()
-        .with_products(vec!["PI_XBTUSD".to_string()])
-        .with_book_depth(25);
-
-    let mut conn = FuturesConnection::new(config);
-    let mut events = conn.take_event_receiver().unwrap();
-
-    tokio::spawn(async move { conn.connect_and_run().await });
-
     while let Some(event) = events.recv().await {
         match event {
-            FuturesEvent::Ticker(t) => {
-                println!("Mark: ${}, Funding: {}%",
-                    t.mark_price.unwrap_or_default(),
-                    t.funding_rate.unwrap_or_default() * dec!(100)
-                );
+            Event::Market(MarketEvent::OrderbookSnapshot { symbol, .. }) => {
+                println!("{}: Snapshot received", symbol);
+            }
+            Event::Market(MarketEvent::OrderbookUpdate { symbol, .. }) => {
+                println!("{}: Update received", symbol);
             }
             _ => {}
         }
@@ -131,238 +121,193 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Architecture
 
-The SDK is organized into seven modular crates:
-
 ```
-                    ┌─────────────────────────────────────┐
-                    │           kraken-sdk               │
-                    │    (High-level unified API)        │
-                    └─────────────────────────────────────┘
-                           │           │           │
-           ┌───────────────┼───────────┼───────────┼───────────────┐
-           ▼               ▼           ▼           ▼               ▼
-    ┌───────────┐   ┌───────────┐ ┌─────────┐ ┌──────────────┐ ┌─────────┐
-    │ kraken-ws │   │kraken-rest│ │kraken-  │ │kraken-futures│ │ kraken- │
-    │ (Spot WS) │   │  (REST)   │ │  book   │ │    -ws       │ │  wasm   │
-    └───────────┘   └───────────┘ │(L2+L3)  │ │ (Futures WS) │ │(Browser)│
-                                  └─────────┘ └──────────────┘ └─────────┘
-                                       │
-                              ┌────────┴────────┐
-                              ▼                 ▼
-                       ┌───────────┐     ┌───────────┐
-                       │kraken-types│     │ L3 Order │
-                       │(Core types)│     │  Book    │
-                       └───────────┘     └───────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                      kraken-sdk                              │
+│         High-level API with builder pattern                  │
+├─────────────────┬─────────────────┬─────────────────────────┤
+│   kraken-ws     │ kraken-futures  │      kraken-auth        │
+│  Spot WS v2     │   Futures WS    │   Token management      │
+├─────────────────┴─────────────────┴─────────────────────────┤
+│                       kraken-book                            │
+│         L2/L3 orderbook engine (WASM-compatible)            │
+├─────────────────────────────────────────────────────────────┤
+│                      kraken-types                            │
+│              Shared types, error codes, enums                │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### Crate Details
+### Crate Responsibilities
 
-| Crate | Purpose | Key Features |
-|-------|---------|--------------|
-| `kraken-types` | Core types and errors | Error codes, rate limits, symbols |
-| `kraken-book` | Orderbook engine | L2 + L3, checksum validation, WASM-compatible |
-| `kraken-ws` | Spot WebSocket client | Auto-reconnect, private channels |
-| `kraken-rest` | REST API client | HMAC-SHA512 auth, all trading endpoints |
-| `kraken-futures-ws` | Futures WebSocket | Perpetuals, funding rates, positions |
-| `kraken-sdk` | High-level API | Builder pattern, unified interface |
-| `kraken-wasm` | Browser bindings | L2 + L3 orderbook in JavaScript |
+| Crate | Purpose | WASM |
+|-------|---------|------|
+| `kraken-sdk` | Unified high-level API | No |
+| `kraken-ws` | Spot WebSocket v2 with trading | No |
+| `kraken-futures-ws` | Futures perpetuals streaming | No |
+| `kraken-auth` | API authentication, token refresh | No |
+| `kraken-book` | L2/L3 orderbook engine | **Yes** |
+| `kraken-types` | Core types, error handling | **Yes** |
+| `kraken-wasm` | JavaScript bindings | **Yes** |
 
-## Features
+## Design Decisions
+
+### Financial Precision with rust_decimal
+
+Floating point arithmetic causes rounding errors that compound in trading systems. We use `rust_decimal` throughout:
+
+```rust
+// This is wrong:
+let price: f64 = 0.1 + 0.2;  // = 0.30000000000000004
+
+// We do this:
+let price: Decimal = dec!(0.1) + dec!(0.2);  // = 0.3 exactly
+```
+
+### CRC32 Checksum Validation
+
+Kraken sends a checksum with each orderbook message. We validate every update to detect:
+- Missed messages
+- Corrupted data
+- Sequence gaps
+
+On mismatch, the SDK automatically requests a fresh snapshot.
+
+### Lock-Free Orderbook Access
+
+The orderbook uses `DashMap` for concurrent read access without blocking writers:
+
+```rust
+// Multiple threads can read simultaneously
+let spread = client.spread("BTC/USD");  // No mutex, no blocking
+```
+
+Writers (delta updates) proceed independently. Readers always see a consistent snapshot.
+
+### Circuit Breaker Pattern
+
+After repeated connection failures, the circuit breaker opens to prevent cascade failures:
+
+```
+Closed (normal) → Open (after N failures) → Half-Open (test connection) → Closed
+```
+
+Configuration:
+- 5 failures to open
+- 30 second reset timeout
+- Exponential backoff: 100ms → 200ms → 400ms → ... → 30s max
+
+### Zero-Copy Event Handling
+
+Events are delivered via `tokio::sync::mpsc` channels. The connection task writes, your handler reads—no intermediate copies.
+
+### WASM Compatibility
+
+`kraken-book` compiles to WebAssembly because:
+- No `tokio` dependency (async is in `kraken-ws`)
+- No networking code
+- Pure computation with `rust_decimal` and standard collections
+
+## Advanced Features
 
 ### L3 Orderbook (Order-Level Depth)
 
-Track individual orders and queue position - essential for market making:
+Track individual orders, not just aggregated levels:
 
 ```rust
 use kraken_book::l3::{L3Book, L3Order, L3Side};
 
-let mut book = L3Book::new("BTC/USD", 100);
+let mut book = L3Book::new("BTC/USD", 1000);
 
-// Add orders
-book.add_order(L3Order::new("order_123", dec!(50000), dec!(1.5)), L3Side::Bid);
+// Add individual orders
+let order = L3Order::new("order_123", dec!(50000), dec!(1.5));
+book.add_order(order, L3Side::Bid);
 
-// Check queue position
+// Query queue position
 if let Some(pos) = book.queue_position("order_123") {
-    println!("Position: {} of {}", pos.position, pos.total_orders);
-    println!("Quantity ahead: {}", pos.qty_ahead);
-    println!("Fill probability: {:.1}%", pos.fill_probability() * 100.0);
+    println!("Position: {} of {} in queue", pos.position, pos.total_orders);
+    println!("Volume ahead: {}", pos.volume_ahead);
 }
 
-// Market making analytics
-let imbalance = book.imbalance();  // Buy/sell pressure
-let vwap = book.vwap_ask(dec!(10.0));  // Cost to buy 10 BTC
+// Aggregate to L2 view
+let l2_bids = book.aggregated_bids();
 ```
 
-### REST API Endpoints
+### WebSocket Trading
 
-Complete trading capability:
-
-| Category | Endpoints |
-|----------|-----------|
-| **Market Data** | Ticker, Orderbook, OHLC, Trades, Assets, Pairs |
-| **Account** | Balance, Trade History, Ledgers, Open Orders |
-| **Trading** | Add Order, Cancel Order, Edit Order, Cancel All |
-| **Funding** | Deposit Methods, Deposit Addresses, Withdrawals |
-| **Earn** | Staking, Unstaking, Pending Rewards |
-
-### Futures API
-
-Full perpetual swap support:
+Place orders without REST API latency:
 
 ```rust
-// Futures-specific data
-FuturesEvent::Ticker(ticker) => {
-    ticker.mark_price      // Fair price for liquidations
-    ticker.index_price     // Spot index
-    ticker.funding_rate    // 8-hourly funding
-    ticker.open_interest   // Total open contracts
-}
+use kraken_ws::trading::{OrderRequest, OrderSide, OrderType};
 
-FuturesEvent::Position(pos) => {
-    pos.pnl                // Unrealized P&L
-    pos.leverage           // Current leverage
-    pos.liquidation_price  // Liquidation threshold
-}
-```
+// Place limit order
+let order = OrderRequest::limit("BTC/USD", OrderSide::Buy, dec!(1.0), dec!(50000));
+conn.place_order(order);
 
-### Private Channels
-
-Real-time execution and balance updates:
-
-```rust
-// Subscribe to private channels (requires auth token)
-Event::Private(PrivateEvent::Execution(exec)) => {
-    println!("Fill: {} {} @ {}", exec.side, exec.qty, exec.price);
-}
-
-Event::Private(PrivateEvent::BalanceUpdate(balances)) => {
-    for (asset, balance) in balances.iter() {
-        println!("{}: {}", asset, balance);
-    }
-}
-```
-
-### Client-Side Rate Limiting
-
-Production-safe by default:
-
-```rust
-use kraken_types::rate_limit::{TokenBucket, RateLimitCategory};
-
-// Automatic rate limiting with token bucket
-let limiter = KrakenRateLimiter::new();
-
-// Check before making requests
-if limiter.try_acquire(RateLimitCategory::RestPrivate) {
-    client.get_balance().await?;
-}
-
-// Or wait for capacity
-limiter.acquire(RateLimitCategory::WsOrder).await;
-```
-
-### Prometheus Metrics
-
-Production observability (enable with `metrics` feature):
-
-```rust
-// Counters
-kraken_messages_total{channel="book", symbol="BTC/USD"}
-kraken_orders_total{side="buy", type="limit"}
-kraken_rate_limit_rejections_total{category="rest_private"}
-
-// Gauges
-kraken_orderbook_spread{symbol="BTC/USD"}
-kraken_orderbook_imbalance{symbol="BTC/USD"}
-kraken_rate_limit_tokens{category="ws_order"}
-
-// Histograms
-kraken_rest_request_duration_seconds{endpoint="AddOrder"}
-kraken_orderbook_update_duration_seconds
-kraken_order_roundtrip_seconds
-```
-
-### Checksum Validation
-
-Every update validated against Kraken's CRC32:
-
-```rust
-Event::Market(MarketEvent::ChecksumMismatch { symbol, expected, computed }) => {
-    eprintln!("Checksum failed for {}: {} vs {}", symbol, expected, computed);
-    // SDK automatically requests fresh snapshot
-}
+// Batch operations
+conn.cancel_all_orders("BTC/USD");
 ```
 
 ### Automatic Reconnection
 
+Connection drops are handled automatically:
+
 ```rust
-let client = KrakenClient::builder(["BTC/USD"])
+use kraken_ws::{ConnectionConfig, ReconnectConfig};
+
+let config = ConnectionConfig::new()
     .with_reconnect(ReconnectConfig {
         initial_delay: Duration::from_millis(100),
         max_delay: Duration::from_secs(30),
         multiplier: 2.0,
         max_attempts: None,  // Retry forever
-    })
-    .connect()
-    .await?;
+    });
 ```
 
-## WebAssembly Support
+### Rate Limiting
 
-### Building WASM Package
+Built-in rate limiting prevents API throttling:
+
+```rust
+// Automatic rate limiting per Kraken's documented limits
+// Public: 1 req/sec
+// Private: Based on verification tier
+```
+
+### Multi-Symbol Streaming
+
+```rust
+let client = KrakenClient::builder(vec![
+    "BTC/USD".into(),
+    "ETH/USD".into(),
+    "SOL/USD".into(),
+])
+.with_depth(Depth::D25)
+.connect()
+.await?;
+
+// Each symbol maintains independent orderbook state
+for symbol in ["BTC/USD", "ETH/USD", "SOL/USD"] {
+    if let Some(spread) = client.spread(symbol) {
+        println!("{}: {}", symbol, spread);
+    }
+}
+```
+
+### Browser Integration (WASM)
 
 ```bash
 cd crates/kraken-wasm
 wasm-pack build --target web
 ```
 
-### Browser Usage (L2 Orderbook)
-
 ```javascript
 import init, { WasmOrderbook } from './pkg/kraken_wasm.js';
 
 await init();
-const book = new WasmOrderbook('BTC/USD');
-
-ws.onmessage = (event) => {
-    book.apply_message(event.data);
-    if (book.is_synced()) {
-        console.log('Spread:', book.get_spread());
-        console.log('Mid:', book.get_mid_price());
-    }
-};
+const book = new WasmOrderbook("BTC/USD", 10);
+book.apply_snapshot(snapshotJson);
+console.log("Spread:", book.spread());
 ```
-
-### Browser Usage (L3 Orderbook)
-
-```javascript
-import init, { WasmL3Book } from './pkg/kraken_wasm.js';
-
-await init();
-const book = new WasmL3Book('BTC/USD', 100);
-
-// Add order and check queue position
-book.add_order('my_order', 'bid', '50000.00', '1.5');
-const pos = book.get_queue_position('my_order');
-console.log('Fill probability:', pos.fill_probability);
-
-// Analytics
-console.log('Imbalance:', book.get_imbalance());
-console.log('VWAP to buy 10:', book.get_vwap_ask('10.0'));
-```
-
-### WASM API Reference
-
-| Method | Returns | Description |
-|--------|---------|-------------|
-| `WasmOrderbook.new(symbol)` | L2 book | Create L2 orderbook |
-| `WasmL3Book.new(symbol, depth)` | L3 book | Create L3 orderbook |
-| `apply_message(json)` | - | Process WebSocket message |
-| `get_bids()` / `get_asks()` | Array | Price levels |
-| `get_spread()` | number | Bid-ask spread |
-| `get_queue_position(id)` | Object | Queue position info |
-| `get_imbalance()` | number | Buy/sell pressure (-1 to 1) |
-| `get_vwap_ask(qty)` | number | VWAP to buy quantity |
 
 ## Examples
 
@@ -370,99 +315,76 @@ console.log('VWAP to buy 10:', book.get_vwap_ask('10.0'));
 # Basic ticker streaming
 cargo run --example simple_ticker
 
-# L2 orderbook streaming
+# L2 orderbook with checksum validation
 cargo run --example orderbook_stream
 
-# Multiple trading pairs
+# Multiple symbols
 cargo run --example multi_symbol
 
-# Advanced reconnection handling
-cargo run --example advanced_reconnect
-
-# REST API trading demo
-cargo run --example rest_trading
-
-# Futures WebSocket streaming
+# Futures perpetuals
 cargo run --example futures_stream
 
-# Market maker with L3 orderbook
+# L3 market making simulation
 cargo run --example market_maker
-```
 
-## Error Handling
+# Reconnection handling
+cargo run --example advanced_reconnect
 
-Comprehensive error codes with recovery strategies:
-
-```rust
-use kraken_types::error_codes::KrakenApiError;
-
-match error {
-    KrakenApiError::RateLimitExceeded => {
-        // Backoff and retry
-        tokio::time::sleep(Duration::from_secs(1)).await;
-    }
-    KrakenApiError::InsufficientFunds => {
-        // User action required
-        eprintln!("Not enough balance");
-    }
-    KrakenApiError::InvalidNonce => {
-        // Retry with new nonce
-    }
-    KrakenApiError::ServiceUnavailable => {
-        // Retry after delay
-    }
-}
+# Full SDK validation against live Kraken
+cargo run --example live_validation
 ```
 
 ## Testing
 
 ```bash
-# All tests (175 total)
+# Unit tests
 cargo test --workspace
 
-# Specific crate
-cargo test -p kraken-book
-cargo test -p kraken-rest
+# Integration tests (requires network)
+cargo test --workspace -- --ignored
 
-# With output
-cargo test --workspace -- --nocapture
-```
-
-## Benchmarks
-
-```bash
+# Benchmarks
 cargo bench -p kraken-book
-```
 
-Typical performance:
-- Orderbook update: <10µs
-- L3 queue position lookup: <5µs
-- Checksum validation: <1µs
-
-## Project Structure
-
-```
-havklo-sdk/
-├── crates/
-│   ├── kraken-types/       # Core types, errors, rate limits
-│   ├── kraken-book/        # L2 + L3 orderbook engine
-│   ├── kraken-ws/          # Spot WebSocket client
-│   ├── kraken-rest/        # REST API client
-│   ├── kraken-futures-ws/  # Futures WebSocket client
-│   ├── kraken-sdk/         # High-level unified API
-│   │   └── examples/       # 7 working examples
-│   └── kraken-wasm/        # Browser bindings
-├── .github/workflows/      # CI/CD
-└── docs/                   # Additional documentation
+# Live validation (connects to real Kraken)
+cargo run --example live_validation
 ```
 
 ## API Compatibility
 
-| API | Version | Status |
-|-----|---------|--------|
-| Spot WebSocket | v2 | Full support |
-| Futures WebSocket | v1 | Full support |
-| REST API | v0 | Full support |
+| API | Version | Coverage |
+|-----|---------|----------|
+| Spot WebSocket | v2 | Full (book, ticker, trade, ohlc) |
+| Spot WS Trading | v2 | Full (add, edit, cancel, batch) |
+| Futures WebSocket | v1 | Full (all feeds) |
+| L3 Orders Channel | v2 | Full |
+| REST API | - | Token endpoint only |
+
+## Error Handling
+
+All errors implement structured recovery:
+
+```rust
+match error {
+    KrakenError::RateLimited { retry_after } => {
+        // Wait and retry
+        tokio::time::sleep(retry_after).await;
+    }
+    KrakenError::ChecksumMismatch { .. } => {
+        // SDK automatically resubscribes
+    }
+    KrakenError::AuthenticationFailed { .. } => {
+        // Refresh credentials
+    }
+    _ => {}
+}
+
+// Or use built-in recovery
+if error.is_retryable() {
+    let delay = error.retry_after().unwrap_or(Duration::from_secs(1));
+    tokio::time::sleep(delay).await;
+}
+```
 
 ## Requirements
 

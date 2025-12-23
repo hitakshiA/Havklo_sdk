@@ -27,3 +27,7 @@ harness = false
 [[bench]]
 name = "orderbook"
 harness = false
+
+[[bench]]
+name = "l3_orderbook"
+harness = false

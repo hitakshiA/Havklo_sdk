@@ -41,6 +41,7 @@ use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use hmac::{Hmac, Mac};
 use parking_lot::RwLock;
 use reqwest::Client;
+use secrecy::{ExposeSecret, SecretString};
 use sha2::{Digest, Sha256, Sha512};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -72,6 +73,9 @@ pub enum AuthError {
 
     #[error("Environment variable not set: {0}")]
     EnvVarNotSet(String),
+
+    #[error("System clock error: time went backwards")]
+    SystemClockError,
 }
 
 /// Response from GetWebSocketsToken endpoint
@@ -89,19 +93,36 @@ struct TokenResult {
 }
 
 /// Manages authentication tokens for Kraken private channels
-#[derive(Clone)]
+///
+/// # Security
+///
+/// Private keys are stored using the `secrecy` crate which zeroizes
+/// memory on drop, preventing sensitive data from remaining in memory.
 pub struct TokenManager {
     api_key: String,
-    private_key: String,
+    /// Private key stored securely (zeroized on drop)
+    private_key: SecretString,
     client: Client,
+}
+
+impl Clone for TokenManager {
+    fn clone(&self) -> Self {
+        Self {
+            api_key: self.api_key.clone(),
+            private_key: SecretString::from(self.private_key.expose_secret().to_string()),
+            client: self.client.clone(),
+        }
+    }
 }
 
 impl TokenManager {
     /// Create a new TokenManager with API credentials
+    ///
+    /// The private key is immediately wrapped in SecretString for secure storage.
     pub fn new(api_key: impl Into<String>, private_key: impl Into<String>) -> Self {
         Self {
             api_key: api_key.into(),
-            private_key: private_key.into(),
+            private_key: SecretString::from(private_key.into()),
             client: Client::new(),
         }
     }
@@ -124,7 +145,7 @@ impl TokenManager {
     /// to refresh the token before it expires.
     #[instrument(skip(self))]
     pub async fn get_token(&self) -> Result<String, AuthError> {
-        let nonce = self.generate_nonce();
+        let nonce = self.generate_nonce()?;
         let post_data = format!("nonce={}", nonce);
 
         let signature = self.sign_request(GET_WS_TOKEN_PATH, &nonce, &post_data)?;
@@ -154,12 +175,12 @@ impl TokenManager {
     }
 
     /// Generate a nonce for API requests
-    fn generate_nonce(&self) -> String {
-        SystemTime::now()
+    fn generate_nonce(&self) -> Result<String, AuthError> {
+        Ok(SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .expect("Time went backwards")
+            .map_err(|_| AuthError::SystemClockError)?
             .as_millis()
-            .to_string()
+            .to_string())
     }
 
     /// Sign an API request using HMAC-SHA512
@@ -169,9 +190,9 @@ impl TokenManager {
         nonce: &str,
         post_data: &str,
     ) -> Result<String, AuthError> {
-        // Decode the private key
+        // Decode the private key (expose_secret provides controlled access)
         let decoded_key = BASE64
-            .decode(&self.private_key)
+            .decode(self.private_key.expose_secret())
             .map_err(|e| AuthError::InvalidPrivateKey(e.to_string()))?;
 
         // Create SHA256 hash of nonce + post_data
@@ -526,6 +547,7 @@ impl AutoRefreshTokenManager {
     /// 3. Handles refresh failures with retries
     ///
     /// The task runs until `stop_auto_refresh()` is called or the manager is dropped.
+    #[instrument(skip(self))]
     pub async fn start_auto_refresh(&self) {
         if !self.inner.config.auto_refresh_enabled {
             debug!("Auto-refresh disabled in config");
@@ -630,9 +652,9 @@ mod tests {
     #[test]
     fn test_nonce_generation() {
         let manager = TokenManager::new("key", "c2VjcmV0");
-        let nonce1 = manager.generate_nonce();
+        let nonce1 = manager.generate_nonce().unwrap();
         std::thread::sleep(std::time::Duration::from_millis(1));
-        let nonce2 = manager.generate_nonce();
+        let nonce2 = manager.generate_nonce().unwrap();
         assert_ne!(nonce1, nonce2);
     }
 

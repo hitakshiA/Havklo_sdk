@@ -41,22 +41,33 @@
 //! }
 //! ```
 
+pub mod circuit_breaker;
 pub mod connection;
 pub mod endpoint;
 pub mod events;
+pub mod order_tracker;
 pub mod rate_limiter;
 pub mod reconnect;
 pub mod subscription;
+pub mod trading;
+pub mod transport;
 
 // Re-export main types
-pub use connection::{ConnectionConfig, ConnectionState, KrakenConnection};
+pub use circuit_breaker::{CircuitBreaker, CircuitBreakerConfig, CircuitState, CircuitBreakerStats};
+pub use connection::{ConnectionConfig, ConnectionState, KrakenConnection, BackpressurePolicy, EventReceiver};
 pub use endpoint::Endpoint;
 pub use events::{
-    // Connection events
     ConnectionEvent, DisconnectReason, Event, MarketEvent, SubscriptionEvent,
-    // Private channel events
     PrivateEvent, OrderStatus, TrackedOrder, OrderFill, ExecutionType, OrderChange, BalanceInfo,
+    L3Event,
 };
-pub use rate_limiter::{KrakenRateLimiter, SharedRateLimiter, shared_rate_limiter};
+pub use order_tracker::{OrderTracker, LifecycleOrder, LifecycleState, Fill, TrackerConfig, TrackerStats};
+pub use rate_limiter::{KrakenRateLimiter, SharedRateLimiter};
 pub use reconnect::ReconnectConfig;
-pub use subscription::{Subscription, SubscriptionManager};
+pub use subscription::Subscription;
+pub use trading::TradingClient;
+pub use transport::{Transport, TransportError, WsTransport};
+
+// Re-export MockTransport when test-utils feature is enabled
+#[cfg(any(test, feature = "test-utils"))]
+pub use transport::MockTransport;

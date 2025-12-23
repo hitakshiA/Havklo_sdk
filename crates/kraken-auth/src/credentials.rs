@@ -1,14 +1,22 @@
-//! Authentication for Kraken REST API
+//! Authentication credentials for Kraken API
 //!
 //! Implements HMAC-SHA512 signing as required by Kraken's private endpoints.
+//!
+//! # Security
+//!
+//! Private keys are stored using the `secrecy` crate which:
+//! - Zeroizes memory on drop (prevents memory scanning)
+//! - Prevents accidental logging via Debug impl
+//! - Provides explicit access via `expose_secret()`
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use hmac::{Hmac, Mac};
+use secrecy::{ExposeSecret, SecretBox};
 use sha2::{Digest, Sha256, Sha512};
-use std::time::{SystemTime, UNIX_EPOCH};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::error::{RestError, RestResult};
+use crate::error::{AuthError, AuthResult};
 
 type HmacSha512 = Hmac<Sha512>;
 
@@ -16,12 +24,14 @@ type HmacSha512 = Hmac<Sha512>;
 static NONCE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// API credentials for authenticated requests
-#[derive(Clone)]
+///
+/// Private keys are automatically zeroized when the Credentials are dropped,
+/// preventing sensitive data from remaining in memory.
 pub struct Credentials {
     /// API key (public)
     api_key: String,
-    /// Private key (base64 encoded)
-    private_key: Vec<u8>,
+    /// Private key (decoded from base64, zeroized on drop)
+    private_key: SecretBox<Vec<u8>>,
 }
 
 impl Credentials {
@@ -33,28 +43,32 @@ impl Credentials {
     ///
     /// # Returns
     /// Result containing Credentials or error if private key is invalid
-    pub fn new(api_key: impl Into<String>, private_key: impl AsRef<str>) -> RestResult<Self> {
+    ///
+    /// # Security
+    /// The private key is immediately converted to a SecretVec which will
+    /// be zeroized when dropped.
+    pub fn new(api_key: impl Into<String>, private_key: impl AsRef<str>) -> AuthResult<Self> {
         let api_key = api_key.into();
         let private_key_str = private_key.as_ref();
 
-        let decoded = BASE64
-            .decode(private_key_str)
-            .map_err(|e| RestError::InvalidCredentials(format!("Invalid base64 private key: {}", e)))?;
+        let decoded = BASE64.decode(private_key_str).map_err(|e| {
+            AuthError::InvalidCredentials(format!("Invalid base64 private key: {}", e))
+        })?;
 
         Ok(Self {
             api_key,
-            private_key: decoded,
+            private_key: SecretBox::new(Box::new(decoded)),
         })
     }
 
     /// Create credentials from environment variables
     ///
     /// Reads `KRAKEN_API_KEY` and `KRAKEN_PRIVATE_KEY` from the environment.
-    pub fn from_env() -> RestResult<Self> {
+    pub fn from_env() -> AuthResult<Self> {
         let api_key = std::env::var("KRAKEN_API_KEY")
-            .map_err(|_| RestError::EnvVarNotSet("KRAKEN_API_KEY".to_string()))?;
+            .map_err(|_| AuthError::EnvVarNotSet("KRAKEN_API_KEY".to_string()))?;
         let private_key = std::env::var("KRAKEN_PRIVATE_KEY")
-            .map_err(|_| RestError::EnvVarNotSet("KRAKEN_PRIVATE_KEY".to_string()))?;
+            .map_err(|_| AuthError::EnvVarNotSet("KRAKEN_PRIVATE_KEY".to_string()))?;
 
         Self::new(api_key, private_key)
     }
@@ -87,7 +101,7 @@ impl Credentials {
     /// 3. Base64 encode result
     ///
     /// # Arguments
-    /// * `path` - API endpoint path (e.g., "/0/private/Balance")
+    /// * `path` - API endpoint path (e.g., "/0/private/GetWebSocketsToken")
     /// * `nonce` - Unique nonce for this request
     /// * `post_data` - URL-encoded POST body
     ///
@@ -105,7 +119,8 @@ impl Credentials {
         message.extend_from_slice(&sha256_result);
 
         // Step 3: HMAC-SHA512(private_key, message)
-        let mut mac = HmacSha512::new_from_slice(&self.private_key)
+        // expose_secret() provides controlled access to the key
+        let mut mac = HmacSha512::new_from_slice(self.private_key.expose_secret())
             .expect("HMAC can take key of any size");
         mac.update(&message);
         let result = mac.finalize();
@@ -115,10 +130,23 @@ impl Credentials {
     }
 }
 
+impl Clone for Credentials {
+    /// Clone credentials (creates new SecretBox with same content)
+    fn clone(&self) -> Self {
+        Self {
+            api_key: self.api_key.clone(),
+            private_key: SecretBox::new(Box::new(self.private_key.expose_secret().clone())),
+        }
+    }
+}
+
 impl std::fmt::Debug for Credentials {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Credentials")
-            .field("api_key", &format!("{}...", &self.api_key[..8.min(self.api_key.len())]))
+            .field(
+                "api_key",
+                &format!("{}...", &self.api_key[..8.min(self.api_key.len())]),
+            )
             .field("private_key", &"[REDACTED]")
             .finish()
     }
@@ -177,7 +205,6 @@ mod tests {
 
     #[test]
     fn test_credentials_debug_redacts_key() {
-        // Use a valid base64 key for testing
         let creds = Credentials::new("test_api_key", "dGVzdF9wcml2YXRlX2tleQ==").unwrap();
         let debug = format!("{:?}", creds);
         assert!(!debug.contains("test_private_key"));
@@ -186,19 +213,27 @@ mod tests {
 
     #[test]
     fn test_signing_consistency() {
-        // Create credentials with a known key
         let creds = Credentials::new(
             "API_KEY",
             "kQH5HW/8p1uGOVjbgWA7FunAmGO8lsSUXNsu3eow76sz84Q18fWxnyRzBHCd3pd5nE9qa99HAZtuZuj6F1huXg==",
-        ).unwrap();
+        )
+        .unwrap();
 
-        // Sign a known request
-        let signature = creds.sign("/0/private/Balance", "1616492376594", "nonce=1616492376594");
+        let signature = creds.sign(
+            "/0/private/GetWebSocketsToken",
+            "1616492376594",
+            "nonce=1616492376594",
+        );
 
         // Signature should be base64 encoded
         assert!(BASE64.decode(&signature).is_ok());
+
         // And consistent
-        let signature2 = creds.sign("/0/private/Balance", "1616492376594", "nonce=1616492376594");
+        let signature2 = creds.sign(
+            "/0/private/GetWebSocketsToken",
+            "1616492376594",
+            "nonce=1616492376594",
+        );
         assert_eq!(signature, signature2);
     }
 }

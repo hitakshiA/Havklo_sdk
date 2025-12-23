@@ -36,20 +36,19 @@ impl FuturesSymbol {
     pub fn parse(symbol: &str) -> Option<Self> {
         let symbol_upper = symbol.to_uppercase();
 
-        // Perpetual: PI_XBTUSD
-        if symbol_upper.starts_with("PI_") {
-            let pair = &symbol_upper[3..];
-            // Common pairs: XBTUSD, ETHUSD, etc.
-            let (base, quote) = if pair.ends_with("USD") {
-                (pair[..pair.len() - 3].to_string(), "USD".to_string())
-            } else if pair.ends_with("EUR") {
-                (pair[..pair.len() - 3].to_string(), "EUR".to_string())
-            } else if pair.ends_with("GBP") {
-                (pair[..pair.len() - 3].to_string(), "GBP".to_string())
-            } else {
-                return None;
-            };
+        // Helper to extract base from pair
+        fn extract_base_quote(pair: &str) -> Option<(String, String)> {
+            for suffix in &["USD", "EUR", "GBP"] {
+                if let Some(base) = pair.strip_suffix(suffix) {
+                    return Some((base.to_string(), (*suffix).to_string()));
+                }
+            }
+            None
+        }
 
+        // Perpetual: PI_XBTUSD
+        if let Some(pair) = symbol_upper.strip_prefix("PI_") {
+            let (base, quote) = extract_base_quote(pair)?;
             return Some(Self {
                 raw: symbol_upper,
                 base,
@@ -59,24 +58,18 @@ impl FuturesSymbol {
         }
 
         // Fixed maturity: FI_XBTUSD_YYMMDD
-        if symbol_upper.starts_with("FI_") {
-            // FI_XBTUSD_240628
-            let rest = &symbol_upper[3..];
+        if let Some(rest) = symbol_upper.strip_prefix("FI_") {
             let parts: Vec<&str> = rest.split('_').collect();
             if !parts.is_empty() {
                 let pair = parts[0];
-                let (base, quote) = if pair.ends_with("USD") {
-                    (pair[..pair.len() - 3].to_string(), "USD".to_string())
-                } else {
-                    return None;
-                };
-
-                return Some(Self {
-                    raw: symbol_upper,
-                    base,
-                    quote,
-                    contract_type: ContractType::FixedMaturity,
-                });
+                if let Some(base) = pair.strip_suffix("USD") {
+                    return Some(Self {
+                        raw: symbol_upper.clone(),
+                        base: base.to_string(),
+                        quote: "USD".to_string(),
+                        contract_type: ContractType::FixedMaturity,
+                    });
+                }
             }
         }
 
@@ -385,6 +378,286 @@ pub struct MarginInfo {
 }
 
 // ============================================================================
+// Open Orders Types (Private Channel)
+// ============================================================================
+
+/// Open order information
+#[derive(Debug, Clone, Deserialize)]
+pub struct OpenOrder {
+    /// Order ID
+    pub order_id: String,
+    /// Client order ID (if provided)
+    #[serde(default)]
+    pub cli_ord_id: Option<String>,
+    /// Product ID
+    pub product_id: String,
+    /// Order side
+    pub side: TradeSide,
+    /// Order type
+    pub order_type: OrderType,
+    /// Limit price
+    pub limit_price: Option<Decimal>,
+    /// Stop price
+    pub stop_price: Option<Decimal>,
+    /// Order quantity
+    pub qty: Decimal,
+    /// Filled quantity
+    pub filled: Decimal,
+    /// Remaining quantity
+    #[serde(default)]
+    pub remaining: Option<Decimal>,
+    /// Reduce-only flag
+    #[serde(default)]
+    pub reduce_only: bool,
+    /// Post-only flag
+    #[serde(default)]
+    pub post_only: bool,
+    /// Order status
+    pub status: OrderStatus,
+    /// Last update time
+    pub last_update_time: Option<String>,
+    /// Timestamp
+    pub timestamp: Option<String>,
+}
+
+impl OpenOrder {
+    /// Get the remaining quantity
+    pub fn remaining_qty(&self) -> Decimal {
+        self.remaining.unwrap_or(self.qty - self.filled)
+    }
+
+    /// Check if order is fully filled
+    pub fn is_filled(&self) -> bool {
+        self.filled >= self.qty || self.status == OrderStatus::Filled
+    }
+}
+
+/// Order type
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum OrderType {
+    /// Limit order
+    #[serde(alias = "lmt")]
+    Limit,
+    /// Market order
+    #[serde(alias = "mkt")]
+    Market,
+    /// Stop order
+    Stop,
+    /// Take profit order
+    TakeProfit,
+    /// Stop limit order
+    StopLimit,
+    /// Take profit limit order
+    TakeProfitLimit,
+    /// Trailing stop order
+    TrailingStop,
+}
+
+/// Order status
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum OrderStatus {
+    /// Order is open
+    Open,
+    /// Order is partially filled
+    #[serde(alias = "partiallyFilled")]
+    PartiallyFilled,
+    /// Order is filled
+    Filled,
+    /// Order is cancelled
+    #[serde(alias = "cancelled")]
+    Canceled,
+    /// Order is untouched
+    Untouched,
+    /// Order is triggered
+    Triggered,
+}
+
+/// Open orders snapshot
+#[derive(Debug, Clone, Deserialize)]
+pub struct OpenOrdersSnapshot {
+    /// List of open orders
+    pub orders: Vec<OpenOrder>,
+    /// Account identifier
+    #[serde(default)]
+    pub account: Option<String>,
+    /// Timestamp
+    #[serde(default)]
+    pub timestamp: Option<String>,
+}
+
+// ============================================================================
+// Fills (Executions) Types (Private Channel)
+// ============================================================================
+
+/// Fill (execution) event
+#[derive(Debug, Clone, Deserialize)]
+pub struct Fill {
+    /// Instrument/product ID
+    pub instrument: String,
+    /// Order ID
+    pub order_id: String,
+    /// Client order ID
+    #[serde(default)]
+    pub cli_ord_id: Option<String>,
+    /// Fill ID
+    pub fill_id: String,
+    /// Fill time
+    pub time: String,
+    /// Fill side
+    pub side: TradeSide,
+    /// Fill price
+    pub price: Decimal,
+    /// Fill quantity
+    pub qty: Decimal,
+    /// Fill type
+    #[serde(rename = "fill_type")]
+    pub fill_type: FillType,
+    /// Fee paid
+    #[serde(default)]
+    pub fee_paid: Option<Decimal>,
+    /// Fee currency
+    #[serde(default)]
+    pub fee_currency: Option<String>,
+    /// Sequence number
+    #[serde(default)]
+    pub seq: Option<u64>,
+}
+
+impl Fill {
+    /// Get the notional value of this fill
+    pub fn notional(&self) -> Decimal {
+        self.price * self.qty
+    }
+}
+
+/// Fill type
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum FillType {
+    /// Maker fill (provided liquidity)
+    Maker,
+    /// Taker fill (took liquidity)
+    Taker,
+    /// Liquidation
+    Liquidation,
+    /// Assignment
+    Assignment,
+    /// Termination
+    Termination,
+}
+
+/// Fills snapshot (batch of recent fills)
+#[derive(Debug, Clone, Deserialize)]
+pub struct FillsSnapshot {
+    /// List of fills
+    pub fills: Vec<Fill>,
+    /// Account identifier
+    #[serde(default)]
+    pub account: Option<String>,
+}
+
+// ============================================================================
+// Account Balances Types (Private Channel)
+// ============================================================================
+
+/// Account balance and margin information
+#[derive(Debug, Clone, Deserialize)]
+pub struct AccountBalance {
+    /// Account currency
+    pub currency: String,
+    /// Available balance
+    pub available: Decimal,
+    /// Balance on hold (in orders)
+    #[serde(default)]
+    pub hold: Option<Decimal>,
+    /// Total balance
+    #[serde(default)]
+    pub balance: Option<Decimal>,
+}
+
+impl AccountBalance {
+    /// Get total balance
+    pub fn total(&self) -> Decimal {
+        self.balance.unwrap_or(self.available + self.hold.unwrap_or(Decimal::ZERO))
+    }
+}
+
+/// Account margins update
+#[derive(Debug, Clone, Deserialize)]
+pub struct AccountMarginsUpdate {
+    /// Account type
+    #[serde(default)]
+    pub account: Option<String>,
+    /// Margin balances by currency
+    pub balances: Vec<AccountBalance>,
+    /// Available margin
+    #[serde(default)]
+    pub available_margin: Option<Decimal>,
+    /// Initial margin requirement
+    #[serde(default)]
+    pub initial_margin: Option<Decimal>,
+    /// Maintenance margin requirement
+    #[serde(default)]
+    pub maintenance_margin: Option<Decimal>,
+    /// Portfolio value
+    #[serde(default)]
+    pub portfolio_value: Option<Decimal>,
+    /// Unrealized PnL
+    #[serde(default)]
+    pub unrealized_pnl: Option<Decimal>,
+    /// Margin level (as percentage)
+    #[serde(default)]
+    pub margin_level: Option<Decimal>,
+    /// Timestamp
+    #[serde(default)]
+    pub timestamp: Option<String>,
+}
+
+// ============================================================================
+// Notifications Types (Private Channel)
+// ============================================================================
+
+/// Notification message
+#[derive(Debug, Clone, Deserialize)]
+pub struct Notification {
+    /// Notification ID
+    #[serde(default)]
+    pub id: Option<String>,
+    /// Notification type
+    #[serde(rename = "type")]
+    pub notification_type: NotificationType,
+    /// Priority
+    #[serde(default)]
+    pub priority: Option<String>,
+    /// Title
+    #[serde(default)]
+    pub title: Option<String>,
+    /// Message content
+    pub message: String,
+    /// Timestamp
+    #[serde(default)]
+    pub timestamp: Option<String>,
+}
+
+/// Notification type
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum NotificationType {
+    /// General information
+    Info,
+    /// Warning
+    Warning,
+    /// Error
+    Error,
+    /// Margin call warning
+    MarginCall,
+    /// Liquidation warning
+    Liquidation,
+}
+
+// ============================================================================
 // Event Types
 // ============================================================================
 
@@ -417,6 +690,18 @@ pub enum FuturesEvent {
     Position(PositionUpdate),
     /// Margin update
     Margin(MarginInfo),
+    /// Open orders snapshot (private)
+    OpenOrders(OpenOrdersSnapshot),
+    /// Single open order update (private)
+    OpenOrderUpdate(OpenOrder),
+    /// Fill (execution) event (private)
+    Fill(Fill),
+    /// Fills snapshot (private)
+    Fills(FillsSnapshot),
+    /// Account balances and margins update (private)
+    AccountUpdate(AccountMarginsUpdate),
+    /// Notification message (private)
+    Notification(Notification),
     /// Heartbeat
     Heartbeat,
     /// Subscription confirmed

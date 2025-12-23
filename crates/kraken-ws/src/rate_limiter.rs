@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use parking_lot::Mutex;
+use tracing::instrument;
 use kraken_types::{
     RateLimitCategory, RateLimitConfig, RateLimitResult, TokenBucket, TokenBucketConfig,
 };
@@ -138,11 +139,13 @@ impl KrakenRateLimiter {
     /// Wait until the request can proceed, then acquire the token
     ///
     /// This is an async method that will sleep if rate limited.
+    #[instrument(skip(self), level = "debug")]
     pub async fn acquire(&self, category: RateLimitCategory) {
         self.acquire_n(category, 1).await
     }
 
     /// Wait and acquire multiple tokens
+    #[instrument(skip(self), level = "debug")]
     pub async fn acquire_n(&self, category: RateLimitCategory, tokens: u32) {
         loop {
             match self.try_acquire_n(category, tokens) {

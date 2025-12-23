@@ -38,7 +38,7 @@ impl TradeChannel {
         let mut trades = self
             .trades
             .entry(trade.product_id.clone())
-            .or_insert_with(VecDeque::new);
+            .or_default();
 
         // Add trade to front (most recent first)
         trades.push_front(trade.clone());

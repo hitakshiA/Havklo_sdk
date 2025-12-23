@@ -1,3 +1,9 @@
+// Clippy allows for design decisions that are intentional
+#![allow(clippy::result_large_err)]      // Large error types preserve full debugging info
+#![allow(clippy::large_enum_variant)]    // Event enums are intentionally not boxed for ergonomics
+#![allow(clippy::module_inception)]      // channels::channels is intentional for discoverability
+#![allow(clippy::too_many_arguments)]    // Trading APIs naturally have many parameters
+
 //! WebSocket client for Kraken Futures API
 //!
 //! This crate provides a WebSocket client for connecting to Kraken's
@@ -61,11 +67,21 @@ pub use types::{
     // Ticker
     FuturesTicker, FundingRate, MarkPrice, IndexPrice,
     // Book
-    FuturesBookSnapshot, FuturesBookUpdate,
+    FuturesBookSnapshot, FuturesBookUpdate, BookLevel,
     // Trades
-    FuturesTrade,
+    FuturesTrade, TradeSide, TradeType,
     // Positions
-    Position, PositionUpdate, MarginInfo,
+    Position, PositionUpdate, MarginInfo, PositionSide,
+    // Open Orders (private)
+    OpenOrder, OpenOrdersSnapshot, OrderType, OrderStatus,
+    // Fills (private)
+    Fill, FillsSnapshot, FillType,
+    // Account (private)
+    AccountBalance, AccountMarginsUpdate,
+    // Notifications (private)
+    Notification, NotificationType,
     // Events
     FuturesEvent,
+    // Symbol
+    FuturesSymbol, ContractType,
 };

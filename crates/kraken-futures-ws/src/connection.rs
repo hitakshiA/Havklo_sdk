@@ -105,9 +105,10 @@ impl FuturesConfig {
 }
 
 /// Connection state
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum ConnectionState {
     /// Not connected
+    #[default]
     Disconnected,
     /// Connecting
     Connecting,
@@ -121,12 +122,6 @@ pub enum ConnectionState {
     Reconnecting { attempt: u32 },
     /// Connection failed
     Failed(String),
-}
-
-impl Default for ConnectionState {
-    fn default() -> Self {
-        Self::Disconnected
-    }
 }
 
 /// WebSocket connection for Kraken Futures

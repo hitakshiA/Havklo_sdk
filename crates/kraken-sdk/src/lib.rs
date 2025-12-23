@@ -47,6 +47,8 @@
 
 pub mod builder;
 pub mod client;
+pub mod filter;
+pub mod market;
 pub mod prelude;
 
 #[cfg(feature = "metrics")]
@@ -60,6 +62,10 @@ pub use builder::KrakenClientBuilder;
 pub use client::KrakenClient;
 
 // Re-export commonly used types from dependencies
-pub use kraken_book::{Orderbook, OrderbookSnapshot, OrderbookState};
-pub use kraken_types::{Depth, KrakenError, Level, Symbol};
-pub use kraken_ws::{ConnectionState, Endpoint, Event, ReconnectConfig};
+pub use kraken_book::{Orderbook, OrderbookSnapshot, OrderbookState, L3Book};
+pub use kraken_types::{Depth, KrakenError, Level, Symbol, Side, Channel};
+pub use kraken_ws::{
+    ConnectionState, Endpoint, Event, ReconnectConfig,
+    TradingClient, L3Event,
+    PrivateEvent, MarketEvent, ConnectionEvent, SubscriptionEvent,
+};

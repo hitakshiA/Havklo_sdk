@@ -31,7 +31,7 @@ impl BookChannel {
         let product_id = snapshot.product_id.clone();
 
         // Create or reset book
-        let book = self.books.entry(product_id.clone()).or_insert_with(TreeBook::new);
+        let book = self.books.entry(product_id.clone()).or_default();
 
         // Clear existing book
         book.clear();

@@ -92,9 +92,10 @@ impl std::fmt::Debug for FuturesCredentials {
 }
 
 /// Authentication state
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum AuthState {
     /// Not authenticated
+    #[default]
     Unauthenticated,
     /// Waiting for challenge
     WaitingForChallenge,
@@ -104,12 +105,6 @@ pub enum AuthState {
     Authenticated,
     /// Authentication failed
     Failed(String),
-}
-
-impl Default for AuthState {
-    fn default() -> Self {
-        Self::Unauthenticated
-    }
 }
 
 #[cfg(test)]

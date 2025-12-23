@@ -1,26 +1,25 @@
 [package]
-name = "kraken-rest"
+name = "kraken-auth"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
-description = "REST API client for Kraken cryptocurrency exchange"
+description = "Authentication and WebSocket token provider for Kraken API"
 
 [features]
 default = []
 
 [dependencies]
-# Workspace dependencies
+# Serialization
 serde = { workspace = true }
 serde_json = { workspace = true }
-rust_decimal = { workspace = true }
-thiserror = { workspace = true }
-tracing = { workspace = true }
-kraken-types = { workspace = true }
 
-# HTTP client
-reqwest = { version = "0.11", features = ["json"] }
+# Error handling
+thiserror = { workspace = true }
+
+# HTTP client (for token endpoint only)
+reqwest = { version = "0.12", features = ["json"] }
 
 # URL encoding for POST data
 serde_urlencoded = "0.7"
@@ -30,8 +29,14 @@ hmac = "0.12"
 sha2 = "0.10"
 base64 = "0.21"
 
+# Secret handling (zeroize on drop)
+secrecy = { version = "0.10", features = ["serde"] }
+
 # Async
 tokio = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

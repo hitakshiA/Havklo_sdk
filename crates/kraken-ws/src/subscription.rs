@@ -57,6 +57,19 @@ impl Subscription {
         }
     }
 
+    /// Create an L3 (Level 3) orderbook subscription
+    ///
+    /// Note: L3 requires connection to the Level3 endpoint (wss://ws-l3.kraken.com/v2)
+    /// and special access permissions.
+    pub fn level3(symbols: Vec<String>) -> Self {
+        Self {
+            channel: Channel::Level3,
+            symbols,
+            depth: None,
+            snapshot: true,
+        }
+    }
+
     /// Convert to a subscribe request
     pub fn to_request(&self, req_id: Option<u64>) -> SubscribeRequest {
         let params = match self.channel {

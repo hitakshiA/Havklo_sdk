@@ -919,3 +919,468 @@ struct JsL3Snapshot {
     checksum: u32,
     sequence: u64,
 }
+
+// ============================================================================
+// REST Client WASM Bindings
+// ============================================================================
+
+use wasm_bindgen_futures::JsFuture;
+use web_sys::{Request, RequestInit, RequestMode, Response};
+
+/// WASM-compatible REST client for Kraken public endpoints
+///
+/// Uses the browser's fetch API to make HTTP requests to Kraken's REST API.
+/// Only public endpoints are supported (no authentication required).
+///
+/// # Usage (JavaScript)
+///
+/// ```javascript
+/// import init, { WasmRestClient } from 'kraken-wasm';
+///
+/// await init();
+///
+/// const client = new WasmRestClient();
+///
+/// // Get ticker data
+/// const ticker = await client.get_ticker('XBTUSD');
+/// console.log('BTC price:', ticker.XXBTZUSD.c[0]);
+///
+/// // Get orderbook
+/// const book = await client.get_orderbook('ETHUSD', 10);
+/// console.log('ETH bids:', book.XETHZUSD.bids);
+/// ```
+#[wasm_bindgen]
+pub struct WasmRestClient {
+    base_url: String,
+}
+
+#[wasm_bindgen]
+impl WasmRestClient {
+    /// Create a new REST client
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> WasmRestClient {
+        WasmRestClient {
+            base_url: "https://api.kraken.com".to_string(),
+        }
+    }
+
+    /// Create a REST client with custom base URL (for testing)
+    #[wasm_bindgen]
+    pub fn with_base_url(base_url: &str) -> WasmRestClient {
+        WasmRestClient {
+            base_url: base_url.to_string(),
+        }
+    }
+
+    /// Get the base URL
+    #[wasm_bindgen]
+    pub fn get_base_url(&self) -> String {
+        self.base_url.clone()
+    }
+
+    // ========== Public Market Data Endpoints ==========
+
+    /// Get server time
+    ///
+    /// Returns the server's current time
+    #[wasm_bindgen]
+    pub async fn get_server_time(&self) -> Result<JsValue, JsValue> {
+        self.fetch_public("/0/public/Time").await
+    }
+
+    /// Get system status
+    ///
+    /// Returns the current system status (online, maintenance, etc.)
+    #[wasm_bindgen]
+    pub async fn get_system_status(&self) -> Result<JsValue, JsValue> {
+        self.fetch_public("/0/public/SystemStatus").await
+    }
+
+    /// Get asset info
+    ///
+    /// Returns information about all available assets
+    #[wasm_bindgen]
+    pub async fn get_assets(&self) -> Result<JsValue, JsValue> {
+        self.fetch_public("/0/public/Assets").await
+    }
+
+    /// Get specific asset info
+    ///
+    /// # Arguments
+    /// * `asset` - Asset name (e.g., "XBT", "ETH")
+    #[wasm_bindgen]
+    pub async fn get_asset(&self, asset: &str) -> Result<JsValue, JsValue> {
+        let url = format!("/0/public/Assets?asset={}", asset);
+        self.fetch_public(&url).await
+    }
+
+    /// Get tradeable asset pairs
+    ///
+    /// Returns information about all tradeable pairs
+    #[wasm_bindgen]
+    pub async fn get_asset_pairs(&self) -> Result<JsValue, JsValue> {
+        self.fetch_public("/0/public/AssetPairs").await
+    }
+
+    /// Get specific asset pair info
+    ///
+    /// # Arguments
+    /// * `pair` - Trading pair (e.g., "XBTUSD", "ETHUSD")
+    #[wasm_bindgen]
+    pub async fn get_asset_pair(&self, pair: &str) -> Result<JsValue, JsValue> {
+        let url = format!("/0/public/AssetPairs?pair={}", pair);
+        self.fetch_public(&url).await
+    }
+
+    /// Get ticker information
+    ///
+    /// # Arguments
+    /// * `pair` - Trading pair(s), comma-separated (e.g., "XBTUSD" or "XBTUSD,ETHUSD")
+    #[wasm_bindgen]
+    pub async fn get_ticker(&self, pair: &str) -> Result<JsValue, JsValue> {
+        let url = format!("/0/public/Ticker?pair={}", pair);
+        self.fetch_public(&url).await
+    }
+
+    /// Get OHLC data
+    ///
+    /// # Arguments
+    /// * `pair` - Trading pair
+    /// * `interval` - Time interval in minutes (1, 5, 15, 30, 60, 240, 1440, 10080, 21600)
+    /// * `since` - Optional Unix timestamp to get data since
+    #[wasm_bindgen]
+    pub async fn get_ohlc(&self, pair: &str, interval: u32, since: Option<u64>) -> Result<JsValue, JsValue> {
+        let mut url = format!("/0/public/OHLC?pair={}&interval={}", pair, interval);
+        if let Some(s) = since {
+            url.push_str(&format!("&since={}", s));
+        }
+        self.fetch_public(&url).await
+    }
+
+    /// Get orderbook
+    ///
+    /// # Arguments
+    /// * `pair` - Trading pair
+    /// * `count` - Maximum number of bids/asks (1-500)
+    #[wasm_bindgen]
+    pub async fn get_orderbook(&self, pair: &str, count: Option<u16>) -> Result<JsValue, JsValue> {
+        let mut url = format!("/0/public/Depth?pair={}", pair);
+        if let Some(c) = count {
+            url.push_str(&format!("&count={}", c));
+        }
+        self.fetch_public(&url).await
+    }
+
+    /// Get recent trades
+    ///
+    /// # Arguments
+    /// * `pair` - Trading pair
+    /// * `since` - Optional trade ID to get trades since
+    /// * `count` - Optional max number of trades
+    #[wasm_bindgen]
+    pub async fn get_recent_trades(&self, pair: &str, since: Option<String>, count: Option<u32>) -> Result<JsValue, JsValue> {
+        let mut url = format!("/0/public/Trades?pair={}", pair);
+        if let Some(s) = since {
+            url.push_str(&format!("&since={}", s));
+        }
+        if let Some(c) = count {
+            url.push_str(&format!("&count={}", c));
+        }
+        self.fetch_public(&url).await
+    }
+
+    /// Get recent spread data
+    ///
+    /// # Arguments
+    /// * `pair` - Trading pair
+    /// * `since` - Optional timestamp to get spreads since
+    #[wasm_bindgen]
+    pub async fn get_spread(&self, pair: &str, since: Option<u64>) -> Result<JsValue, JsValue> {
+        let mut url = format!("/0/public/Spread?pair={}", pair);
+        if let Some(s) = since {
+            url.push_str(&format!("&since={}", s));
+        }
+        self.fetch_public(&url).await
+    }
+
+    // ========== Internal Helpers ==========
+
+    /// Fetch from a public endpoint
+    async fn fetch_public(&self, path: &str) -> Result<JsValue, JsValue> {
+        let url = format!("{}{}", self.base_url, path);
+
+        let opts = RequestInit::new();
+        opts.set_method("GET");
+        opts.set_mode(RequestMode::Cors);
+
+        let request = Request::new_with_str_and_init(&url, &opts)
+            .map_err(|e| JsValue::from_str(&format!("Failed to create request: {:?}", e)))?;
+
+        request.headers()
+            .set("Accept", "application/json")
+            .map_err(|e| JsValue::from_str(&format!("Failed to set header: {:?}", e)))?;
+
+        let window = web_sys::window()
+            .ok_or_else(|| JsValue::from_str("No window object available"))?;
+
+        let resp_value = JsFuture::from(window.fetch_with_request(&request))
+            .await
+            .map_err(|e| JsValue::from_str(&format!("Fetch failed: {:?}", e)))?;
+
+        let resp: Response = resp_value
+            .dyn_into()
+            .map_err(|_| JsValue::from_str("Response is not a Response object"))?;
+
+        if !resp.ok() {
+            return Err(JsValue::from_str(&format!(
+                "HTTP error: {} {}",
+                resp.status(),
+                resp.status_text()
+            )));
+        }
+
+        let json = JsFuture::from(
+            resp.json()
+                .map_err(|e| JsValue::from_str(&format!("Failed to get JSON: {:?}", e)))?,
+        )
+        .await
+        .map_err(|e| JsValue::from_str(&format!("Failed to parse JSON: {:?}", e)))?;
+
+        // Check for Kraken API errors in response
+        if let Ok(error_array) = js_sys::Reflect::get(&json, &JsValue::from_str("error")) {
+            if let Some(arr) = error_array.dyn_ref::<js_sys::Array>() {
+                if arr.length() > 0 {
+                    let errors: Vec<String> = arr
+                        .iter()
+                        .filter_map(|v| v.as_string())
+                        .collect();
+                    if !errors.is_empty() {
+                        return Err(JsValue::from_str(&format!("Kraken API error: {}", errors.join(", "))));
+                    }
+                }
+            }
+        }
+
+        // Return the result field
+        js_sys::Reflect::get(&json, &JsValue::from_str("result"))
+            .map_err(|_| JsValue::from_str("Response missing 'result' field"))
+    }
+}
+
+impl Default for WasmRestClient {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+// ============================================================================
+// Rate Limiter WASM Bindings
+// ============================================================================
+
+use std::cell::RefCell;
+use std::rc::Rc;
+
+/// WASM-compatible rate limiter for client-side request throttling
+///
+/// Uses a token bucket algorithm to rate limit requests. This helps prevent
+/// hitting Kraken's API rate limits when making requests from the browser.
+///
+/// # Usage (JavaScript)
+///
+/// ```javascript
+/// import init, { WasmRateLimiter } from 'kraken-wasm';
+///
+/// await init();
+///
+/// // Create a limiter for public endpoints (15 req/min, refill 0.25/sec)
+/// const limiter = new WasmRateLimiter(15, 0.25);
+///
+/// // Before making a request
+/// if (limiter.try_acquire()) {
+///     await client.get_ticker('XBTUSD');
+/// } else {
+///     const waitTime = limiter.time_until_available();
+///     console.log(`Rate limited, wait ${waitTime}ms`);
+/// }
+///
+/// // Or wait for availability
+/// await limiter.wait_for_token();
+/// await client.get_ticker('ETHUSD');
+/// ```
+#[wasm_bindgen]
+pub struct WasmRateLimiter {
+    capacity: f64,
+    tokens: Rc<RefCell<f64>>,
+    refill_rate: f64,  // tokens per second
+    last_refill: Rc<RefCell<f64>>,  // timestamp in ms
+}
+
+#[wasm_bindgen]
+impl WasmRateLimiter {
+    /// Create a new rate limiter
+    ///
+    /// # Arguments
+    /// * `capacity` - Maximum number of tokens (requests)
+    /// * `refill_rate` - Tokens added per second
+    #[wasm_bindgen(constructor)]
+    pub fn new(capacity: f64, refill_rate: f64) -> WasmRateLimiter {
+        let now = js_sys::Date::now();
+        WasmRateLimiter {
+            capacity,
+            tokens: Rc::new(RefCell::new(capacity)),
+            refill_rate,
+            last_refill: Rc::new(RefCell::new(now)),
+        }
+    }
+
+    /// Create a rate limiter with Kraken's default public endpoint limits
+    ///
+    /// 15 requests, refilling at 0.5 per second (30 per minute)
+    #[wasm_bindgen]
+    pub fn kraken_public() -> WasmRateLimiter {
+        WasmRateLimiter::new(15.0, 0.5)
+    }
+
+    /// Create a rate limiter with Kraken's default private endpoint limits
+    ///
+    /// 20 requests, refilling at 0.33 per second (20 per minute)
+    #[wasm_bindgen]
+    pub fn kraken_private() -> WasmRateLimiter {
+        WasmRateLimiter::new(20.0, 0.33)
+    }
+
+    /// Refill tokens based on time elapsed
+    fn refill(&self) {
+        let now = js_sys::Date::now();
+        let mut last = self.last_refill.borrow_mut();
+        let elapsed_secs = (now - *last) / 1000.0;
+
+        if elapsed_secs > 0.0 {
+            let mut tokens = self.tokens.borrow_mut();
+            let new_tokens = *tokens + (elapsed_secs * self.refill_rate);
+            *tokens = new_tokens.min(self.capacity);
+            *last = now;
+        }
+    }
+
+    /// Try to acquire a token for making a request
+    ///
+    /// Returns true if a token was acquired, false if rate limited
+    #[wasm_bindgen]
+    pub fn try_acquire(&self) -> bool {
+        self.refill();
+
+        let mut tokens = self.tokens.borrow_mut();
+        if *tokens >= 1.0 {
+            *tokens -= 1.0;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Get the number of available tokens
+    #[wasm_bindgen]
+    pub fn available(&self) -> f64 {
+        self.refill();
+        *self.tokens.borrow()
+    }
+
+    /// Get the maximum capacity
+    #[wasm_bindgen]
+    pub fn capacity(&self) -> f64 {
+        self.capacity
+    }
+
+    /// Get time until a token is available (in milliseconds)
+    ///
+    /// Returns 0 if a token is immediately available
+    #[wasm_bindgen]
+    pub fn time_until_available(&self) -> f64 {
+        self.refill();
+
+        let tokens = *self.tokens.borrow();
+        if tokens >= 1.0 {
+            0.0
+        } else {
+            let needed = 1.0 - tokens;
+            (needed / self.refill_rate) * 1000.0
+        }
+    }
+
+    /// Get utilization percentage (0.0 to 1.0)
+    ///
+    /// 0.0 = no tokens used, 1.0 = all tokens used
+    #[wasm_bindgen]
+    pub fn utilization(&self) -> f64 {
+        self.refill();
+        let tokens = *self.tokens.borrow();
+        1.0 - (tokens / self.capacity)
+    }
+
+    /// Reset the limiter to full capacity
+    #[wasm_bindgen]
+    pub fn reset(&self) {
+        *self.tokens.borrow_mut() = self.capacity;
+        *self.last_refill.borrow_mut() = js_sys::Date::now();
+    }
+
+    /// Wait for a token to become available (returns a Promise)
+    ///
+    /// This is useful for async/await patterns in JavaScript
+    #[wasm_bindgen]
+    pub fn wait_for_token(&self) -> js_sys::Promise {
+        let tokens = self.tokens.clone();
+        let last_refill = self.last_refill.clone();
+        let capacity = self.capacity;
+        let refill_rate = self.refill_rate;
+
+        js_sys::Promise::new(&mut |resolve, _reject| {
+            // Check current availability
+            let now = js_sys::Date::now();
+            let elapsed_secs = (now - *last_refill.borrow()) / 1000.0;
+            let current_tokens = (*tokens.borrow() + elapsed_secs * refill_rate).min(capacity);
+
+            if current_tokens >= 1.0 {
+                // Token available, resolve immediately
+                *tokens.borrow_mut() = current_tokens - 1.0;
+                *last_refill.borrow_mut() = now;
+                resolve.call0(&JsValue::UNDEFINED).ok();
+            } else {
+                // Need to wait
+                let needed = 1.0 - current_tokens;
+                let wait_ms = (needed / refill_rate) * 1000.0;
+
+                let tokens_clone = tokens.clone();
+                let last_refill_clone = last_refill.clone();
+
+                let closure = wasm_bindgen::closure::Closure::once(Box::new(move || {
+                    let now = js_sys::Date::now();
+                    let elapsed = (now - *last_refill_clone.borrow()) / 1000.0;
+                    let new_tokens = (*tokens_clone.borrow() + elapsed * refill_rate).min(capacity);
+                    *tokens_clone.borrow_mut() = (new_tokens - 1.0).max(0.0);
+                    *last_refill_clone.borrow_mut() = now;
+                    resolve.call0(&JsValue::UNDEFINED).ok();
+                }) as Box<dyn FnOnce()>);
+
+                let window = web_sys::window().expect("window");
+                window
+                    .set_timeout_with_callback_and_timeout_and_arguments_0(
+                        closure.as_ref().unchecked_ref(),
+                        wait_ms as i32,
+                    )
+                    .ok();
+                closure.forget();
+            }
+        })
+    }
+
+    /// Check if making a request would exceed the rate limit
+    ///
+    /// Returns true if the rate limit would be exceeded
+    #[wasm_bindgen]
+    pub fn is_limited(&self) -> bool {
+        self.refill();
+        *self.tokens.borrow() < 1.0
+    }
+}

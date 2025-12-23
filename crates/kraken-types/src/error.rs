@@ -1,20 +1,20 @@
-//! Error types for Kraken SDK
+//! Error types for Havklo SDK
 
 use std::time::Duration;
 use thiserror::Error;
 
 use crate::error_codes::{KrakenApiError as ParsedApiError, KrakenErrorCode, RecoveryStrategy};
 
-/// Main error type for Kraken SDK operations
-#[derive(Error, Debug)]
+/// Main error type for Havklo SDK operations
+#[derive(Error, Debug, Clone)]
 pub enum KrakenError {
     // === Connection Errors ===
     /// Failed to establish WebSocket connection
-    #[error("Failed to connect to {url}: {source}")]
+    #[error("Failed to connect to {url}: {reason}")]
     ConnectionFailed {
         url: String,
-        #[source]
-        source: std::io::Error,
+        /// Error message (converted from io::Error for Clone support)
+        reason: String,
     },
 
     /// Connection attempt timed out

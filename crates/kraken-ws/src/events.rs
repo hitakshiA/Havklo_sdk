@@ -4,7 +4,7 @@
 //! private account data (executions, balances).
 
 use kraken_book::OrderbookSnapshot;
-use kraken_types::{BalanceData, Decimal, ExecutionData, Side};
+use kraken_types::{BalanceData, Decimal, ExecutionData, L3Data, L3Order, Side};
 use std::collections::HashMap;
 use std::time::Duration;
 
@@ -21,6 +21,8 @@ pub enum DisconnectReason {
     Shutdown,
     /// Authentication failed
     AuthFailed,
+    /// No heartbeat/message received within timeout period
+    HeartbeatTimeout,
 }
 
 /// Connection lifecycle events
@@ -54,6 +56,11 @@ pub enum ConnectionEvent {
     SubscriptionsRestored {
         /// Number of subscriptions restored
         count: usize,
+    },
+    /// Circuit breaker is open (blocking reconnection attempts)
+    CircuitBreakerOpen {
+        /// Number of times circuit has been tripped
+        trips: u64,
     },
 }
 
@@ -144,8 +151,8 @@ pub enum OrderStatus {
 }
 
 impl OrderStatus {
-    /// Parse from string
-    pub fn from_str(s: &str) -> Self {
+    /// Parse from status string
+    pub fn parse(s: &str) -> Self {
         match s.to_lowercase().as_str() {
             "pending" => Self::Pending,
             "new" | "open" => Self::New,
@@ -212,7 +219,7 @@ impl TrackedOrder {
             filled_qty: exec.cum_qty.unwrap_or(Decimal::ZERO),
             avg_price: exec.avg_price,
             status: exec.order_status.as_ref()
-                .map(|s| OrderStatus::from_str(s))
+                .map(|s| OrderStatus::parse(s))
                 .unwrap_or(OrderStatus::Pending),
             total_fees: exec.fee_paid.unwrap_or(Decimal::ZERO),
             fee_currency: exec.fee_currency.clone(),
@@ -230,7 +237,7 @@ impl TrackedOrder {
             self.avg_price = Some(avg_price);
         }
         if let Some(ref status) = exec.order_status {
-            self.status = OrderStatus::from_str(status);
+            self.status = OrderStatus::parse(status);
         }
         if let Some(fee) = exec.fee_paid {
             self.total_fees = fee;
@@ -353,7 +360,7 @@ pub enum ExecutionType {
 
 impl ExecutionType {
     /// Parse from exec_type string
-    pub fn from_str(s: &str) -> Self {
+    pub fn parse(s: &str) -> Self {
         match s.to_lowercase().as_str() {
             "new" => Self::New,
             "trade" | "filled" => Self::Trade,
@@ -409,6 +416,69 @@ impl BalanceInfo {
     }
 }
 
+// ============================================================================
+// Level 3 (L3) Events
+// ============================================================================
+
+/// Level 3 orderbook events
+///
+/// L3 provides individual order visibility, unlike L2 which shows aggregated levels.
+#[derive(Debug, Clone)]
+pub enum L3Event {
+    /// Full L3 orderbook snapshot
+    Snapshot {
+        /// Trading pair symbol
+        symbol: String,
+        /// Bid orders
+        bids: Vec<L3Order>,
+        /// Ask orders
+        asks: Vec<L3Order>,
+        /// Checksum for validation
+        checksum: Option<u32>,
+    },
+    /// L3 orderbook update
+    Update {
+        /// Trading pair symbol
+        symbol: String,
+        /// Bid order changes
+        bids: Vec<L3Order>,
+        /// Ask order changes
+        asks: Vec<L3Order>,
+    },
+}
+
+impl L3Event {
+    /// Create from L3Data
+    pub fn from_data(data: &L3Data, is_snapshot: bool) -> Self {
+        if is_snapshot {
+            Self::Snapshot {
+                symbol: data.symbol.clone(),
+                bids: data.bids.clone(),
+                asks: data.asks.clone(),
+                checksum: data.checksum,
+            }
+        } else {
+            Self::Update {
+                symbol: data.symbol.clone(),
+                bids: data.bids.clone(),
+                asks: data.asks.clone(),
+            }
+        }
+    }
+
+    /// Get the symbol for this event
+    pub fn symbol(&self) -> &str {
+        match self {
+            Self::Snapshot { symbol, .. } | Self::Update { symbol, .. } => symbol,
+        }
+    }
+
+    /// Check if this is a snapshot
+    pub fn is_snapshot(&self) -> bool {
+        matches!(self, Self::Snapshot { .. })
+    }
+}
+
 /// Combined event type for event streams
 #[derive(Debug, Clone)]
 pub enum Event {
@@ -419,7 +489,9 @@ pub enum Event {
     /// Market data event
     Market(MarketEvent),
     /// Private channel event (executions, balances)
-    Private(PrivateEvent),
+    Private(Box<PrivateEvent>),
+    /// Level 3 orderbook event
+    L3(L3Event),
 }
 
 impl From<ConnectionEvent> for Event {
@@ -442,7 +514,13 @@ impl From<MarketEvent> for Event {
 
 impl From<PrivateEvent> for Event {
     fn from(event: PrivateEvent) -> Self {
-        Event::Private(event)
+        Event::Private(Box::new(event))
+    }
+}
+
+impl From<L3Event> for Event {
+    fn from(event: L3Event) -> Self {
+        Event::L3(event)
     }
 }
 
@@ -452,13 +530,13 @@ mod tests {
 
     #[test]
     fn test_order_status_parsing() {
-        assert_eq!(OrderStatus::from_str("pending"), OrderStatus::Pending);
-        assert_eq!(OrderStatus::from_str("new"), OrderStatus::New);
-        assert_eq!(OrderStatus::from_str("open"), OrderStatus::New);
-        assert_eq!(OrderStatus::from_str("filled"), OrderStatus::Filled);
-        assert_eq!(OrderStatus::from_str("closed"), OrderStatus::Filled);
-        assert_eq!(OrderStatus::from_str("canceled"), OrderStatus::Canceled);
-        assert_eq!(OrderStatus::from_str("cancelled"), OrderStatus::Canceled);
+        assert_eq!(OrderStatus::parse("pending"), OrderStatus::Pending);
+        assert_eq!(OrderStatus::parse("new"), OrderStatus::New);
+        assert_eq!(OrderStatus::parse("open"), OrderStatus::New);
+        assert_eq!(OrderStatus::parse("filled"), OrderStatus::Filled);
+        assert_eq!(OrderStatus::parse("closed"), OrderStatus::Filled);
+        assert_eq!(OrderStatus::parse("canceled"), OrderStatus::Canceled);
+        assert_eq!(OrderStatus::parse("cancelled"), OrderStatus::Canceled);
     }
 
     #[test]
@@ -477,11 +555,11 @@ mod tests {
 
     #[test]
     fn test_execution_type_parsing() {
-        assert_eq!(ExecutionType::from_str("new"), ExecutionType::New);
-        assert_eq!(ExecutionType::from_str("trade"), ExecutionType::Trade);
-        assert_eq!(ExecutionType::from_str("filled"), ExecutionType::Trade);
-        assert_eq!(ExecutionType::from_str("canceled"), ExecutionType::Canceled);
-        assert_eq!(ExecutionType::from_str("cancelled"), ExecutionType::Canceled);
+        assert_eq!(ExecutionType::parse("new"), ExecutionType::New);
+        assert_eq!(ExecutionType::parse("trade"), ExecutionType::Trade);
+        assert_eq!(ExecutionType::parse("filled"), ExecutionType::Trade);
+        assert_eq!(ExecutionType::parse("canceled"), ExecutionType::Canceled);
+        assert_eq!(ExecutionType::parse("cancelled"), ExecutionType::Canceled);
     }
 
     #[test]

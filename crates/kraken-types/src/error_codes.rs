@@ -6,7 +6,7 @@
 use std::time::Duration;
 
 /// Recovery strategy for handling API errors
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum RecoveryStrategy {
     /// Exponential backoff before retry
     Backoff {
@@ -27,13 +27,8 @@ pub enum RecoveryStrategy {
     /// Skip this message and continue
     Skip,
     /// Manual investigation needed
+    #[default]
     Manual,
-}
-
-impl Default for RecoveryStrategy {
-    fn default() -> Self {
-        Self::Manual
-    }
 }
 
 impl RecoveryStrategy {
@@ -144,13 +139,13 @@ impl KrakenApiError {
                 _ => ErrorCategory::Unknown,
             };
 
-            let code = KrakenErrorCode::from_str(error);
+            let code = KrakenErrorCode::from_error_string(error);
 
             (category, code, message)
         } else {
             (
                 ErrorCategory::Unknown,
-                KrakenErrorCode::from_str(error),
+                KrakenErrorCode::from_error_string(error),
                 error.to_string(),
             )
         }
@@ -317,7 +312,7 @@ pub enum KrakenErrorCode {
 
 impl KrakenErrorCode {
     /// Parse error code from Kraken error string
-    pub fn from_str(error: &str) -> Option<Self> {
+    pub fn from_error_string(error: &str) -> Option<Self> {
         // Normalize for matching
         let normalized = error.to_lowercase();
 

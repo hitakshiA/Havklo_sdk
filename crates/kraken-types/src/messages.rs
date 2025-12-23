@@ -526,6 +526,498 @@ pub struct WalletData {
 }
 
 // ============================================================================
+// Level 3 (L3) Orders Channel Data Types
+// ============================================================================
+
+/// L3 order event type
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum L3EventType {
+    /// New order added to book
+    Add,
+    /// Order modified
+    Modify,
+    /// Order deleted from book
+    Delete,
+}
+
+/// Individual L3 order entry
+#[derive(Debug, Clone, Deserialize)]
+pub struct L3Order {
+    /// Unique order ID
+    pub order_id: String,
+    /// Limit price
+    pub limit_price: Decimal,
+    /// Order quantity
+    pub order_qty: Decimal,
+    /// Timestamp
+    pub timestamp: String,
+    /// Event type (add, modify, delete)
+    #[serde(default)]
+    pub event: Option<L3EventType>,
+}
+
+/// L3 channel data for a symbol
+#[derive(Debug, Clone, Deserialize)]
+pub struct L3Data {
+    /// Trading pair symbol
+    pub symbol: String,
+    /// Bid orders
+    #[serde(default)]
+    pub bids: Vec<L3Order>,
+    /// Ask orders
+    #[serde(default)]
+    pub asks: Vec<L3Order>,
+    /// CRC32 checksum (for verification)
+    #[serde(default)]
+    pub checksum: Option<u32>,
+}
+
+/// L3 message type
+pub type L3Message = ChannelMessage<L3Data>;
+
+// ============================================================================
+// WebSocket Trading Request Types
+// ============================================================================
+
+/// Time-in-force for orders
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[allow(clippy::upper_case_acronyms)]
+pub enum TimeInForce {
+    /// Good til canceled
+    #[serde(rename = "gtc")]
+    GTC,
+    /// Immediate or cancel
+    #[serde(rename = "ioc")]
+    IOC,
+    /// Good til date
+    #[serde(rename = "gtd")]
+    GTD,
+}
+
+/// Add order request via WebSocket
+#[derive(Debug, Clone, Serialize)]
+pub struct AddOrderRequest {
+    /// Method name
+    pub method: &'static str,
+    /// Request parameters
+    pub params: AddOrderParams,
+    /// Optional request ID
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub req_id: Option<u64>,
+}
+
+/// Add order parameters
+#[derive(Debug, Clone, Serialize)]
+pub struct AddOrderParams {
+    /// Order type (market, limit, etc.)
+    pub order_type: String,
+    /// Order side (buy/sell)
+    pub side: Side,
+    /// Trading pair symbol
+    pub symbol: String,
+    /// Order quantity
+    #[serde(serialize_with = "serialize_decimal")]
+    pub order_qty: Decimal,
+    /// Limit price (required for limit orders)
+    #[serde(skip_serializing_if = "Option::is_none", serialize_with = "serialize_option_decimal")]
+    pub limit_price: Option<Decimal>,
+    /// Time in force
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub time_in_force: Option<TimeInForce>,
+    /// Stop/trigger price
+    #[serde(skip_serializing_if = "Option::is_none", serialize_with = "serialize_option_decimal")]
+    pub trigger_price: Option<Decimal>,
+    /// Client order ID
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cl_ord_id: Option<String>,
+    /// Post-only flag
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub post_only: Option<bool>,
+    /// Reduce-only flag
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reduce_only: Option<bool>,
+    /// WebSocket authentication token
+    pub token: String,
+}
+
+impl AddOrderRequest {
+    /// Create a new add order request
+    pub fn new(params: AddOrderParams) -> Self {
+        Self {
+            method: "add_order",
+            params,
+            req_id: None,
+        }
+    }
+
+    /// Set request ID
+    pub fn with_req_id(mut self, id: u64) -> Self {
+        self.req_id = Some(id);
+        self
+    }
+}
+
+/// Amend order request
+#[derive(Debug, Clone, Serialize)]
+pub struct AmendOrderRequest {
+    /// Method name
+    pub method: &'static str,
+    /// Request parameters
+    pub params: AmendOrderParams,
+    /// Optional request ID
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub req_id: Option<u64>,
+}
+
+/// Amend order parameters
+#[derive(Debug, Clone, Serialize)]
+pub struct AmendOrderParams {
+    /// Order ID to amend
+    pub order_id: String,
+    /// New limit price
+    #[serde(skip_serializing_if = "Option::is_none", serialize_with = "serialize_option_decimal")]
+    pub limit_price: Option<Decimal>,
+    /// New trigger price
+    #[serde(skip_serializing_if = "Option::is_none", serialize_with = "serialize_option_decimal")]
+    pub trigger_price: Option<Decimal>,
+    /// New order quantity
+    #[serde(skip_serializing_if = "Option::is_none", serialize_with = "serialize_option_decimal")]
+    pub order_qty: Option<Decimal>,
+    /// Post-only flag
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub post_only: Option<bool>,
+    /// WebSocket authentication token
+    pub token: String,
+}
+
+impl AmendOrderRequest {
+    /// Create a new amend order request
+    pub fn new(params: AmendOrderParams) -> Self {
+        Self {
+            method: "amend_order",
+            params,
+            req_id: None,
+        }
+    }
+
+    /// Set request ID
+    pub fn with_req_id(mut self, id: u64) -> Self {
+        self.req_id = Some(id);
+        self
+    }
+}
+
+/// Cancel order request
+#[derive(Debug, Clone, Serialize)]
+pub struct CancelOrderRequest {
+    /// Method name
+    pub method: &'static str,
+    /// Request parameters
+    pub params: CancelOrderParams,
+    /// Optional request ID
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub req_id: Option<u64>,
+}
+
+/// Cancel order parameters
+#[derive(Debug, Clone, Serialize)]
+pub struct CancelOrderParams {
+    /// Order IDs to cancel
+    pub order_id: Vec<String>,
+    /// Client order IDs to cancel
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cl_ord_id: Option<Vec<String>>,
+    /// WebSocket authentication token
+    pub token: String,
+}
+
+impl CancelOrderRequest {
+    /// Create a new cancel order request
+    pub fn new(params: CancelOrderParams) -> Self {
+        Self {
+            method: "cancel_order",
+            params,
+            req_id: None,
+        }
+    }
+
+    /// Set request ID
+    pub fn with_req_id(mut self, id: u64) -> Self {
+        self.req_id = Some(id);
+        self
+    }
+}
+
+/// Cancel all orders request
+#[derive(Debug, Clone, Serialize)]
+pub struct CancelAllRequest {
+    /// Method name
+    pub method: &'static str,
+    /// Request parameters
+    pub params: CancelAllParams,
+    /// Optional request ID
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub req_id: Option<u64>,
+}
+
+/// Cancel all orders parameters
+#[derive(Debug, Clone, Serialize)]
+pub struct CancelAllParams {
+    /// WebSocket authentication token
+    pub token: String,
+}
+
+impl CancelAllRequest {
+    /// Create a new cancel all request
+    pub fn new(token: String) -> Self {
+        Self {
+            method: "cancel_all",
+            params: CancelAllParams { token },
+            req_id: None,
+        }
+    }
+
+    /// Set request ID
+    pub fn with_req_id(mut self, id: u64) -> Self {
+        self.req_id = Some(id);
+        self
+    }
+}
+
+/// Cancel all orders on disconnect request
+#[derive(Debug, Clone, Serialize)]
+pub struct CancelOnDisconnectRequest {
+    /// Method name
+    pub method: &'static str,
+    /// Request parameters
+    pub params: CancelOnDisconnectParams,
+    /// Optional request ID
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub req_id: Option<u64>,
+}
+
+/// Cancel on disconnect parameters
+#[derive(Debug, Clone, Serialize)]
+pub struct CancelOnDisconnectParams {
+    /// Timeout in seconds (0 to disable)
+    pub timeout: u32,
+    /// WebSocket authentication token
+    pub token: String,
+}
+
+impl CancelOnDisconnectRequest {
+    /// Create a new cancel on disconnect request
+    pub fn new(timeout: u32, token: String) -> Self {
+        Self {
+            method: "cancel_all_orders_after",
+            params: CancelOnDisconnectParams { timeout, token },
+            req_id: None,
+        }
+    }
+
+    /// Set request ID
+    pub fn with_req_id(mut self, id: u64) -> Self {
+        self.req_id = Some(id);
+        self
+    }
+}
+
+/// Batch add orders request
+#[derive(Debug, Clone, Serialize)]
+pub struct BatchAddRequest {
+    /// Method name
+    pub method: &'static str,
+    /// Request parameters
+    pub params: BatchAddParams,
+    /// Optional request ID
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub req_id: Option<u64>,
+}
+
+/// Batch add parameters
+#[derive(Debug, Clone, Serialize)]
+pub struct BatchAddParams {
+    /// List of orders to add
+    pub orders: Vec<BatchOrder>,
+    /// WebSocket authentication token
+    pub token: String,
+    /// Deadline for execution
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deadline: Option<String>,
+    /// Validate only, don't execute
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub validate: Option<bool>,
+}
+
+/// Individual order in batch
+#[derive(Debug, Clone, Serialize)]
+pub struct BatchOrder {
+    /// Order type
+    pub order_type: String,
+    /// Side
+    pub side: Side,
+    /// Symbol
+    pub symbol: String,
+    /// Quantity
+    #[serde(serialize_with = "serialize_decimal")]
+    pub order_qty: Decimal,
+    /// Limit price
+    #[serde(skip_serializing_if = "Option::is_none", serialize_with = "serialize_option_decimal")]
+    pub limit_price: Option<Decimal>,
+    /// Client order ID
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cl_ord_id: Option<String>,
+}
+
+impl BatchAddRequest {
+    /// Create a new batch add request
+    pub fn new(params: BatchAddParams) -> Self {
+        Self {
+            method: "batch_add",
+            params,
+            req_id: None,
+        }
+    }
+
+    /// Set request ID
+    pub fn with_req_id(mut self, id: u64) -> Self {
+        self.req_id = Some(id);
+        self
+    }
+}
+
+/// Batch cancel orders request
+#[derive(Debug, Clone, Serialize)]
+pub struct BatchCancelRequest {
+    /// Method name
+    pub method: &'static str,
+    /// Request parameters
+    pub params: BatchCancelParams,
+    /// Optional request ID
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub req_id: Option<u64>,
+}
+
+/// Batch cancel parameters
+#[derive(Debug, Clone, Serialize)]
+pub struct BatchCancelParams {
+    /// Order IDs to cancel
+    pub orders: Vec<String>,
+    /// Client order IDs to cancel
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cl_ord_id: Option<Vec<String>>,
+    /// WebSocket authentication token
+    pub token: String,
+}
+
+impl BatchCancelRequest {
+    /// Create a new batch cancel request
+    pub fn new(params: BatchCancelParams) -> Self {
+        Self {
+            method: "batch_cancel",
+            params,
+            req_id: None,
+        }
+    }
+
+    /// Set request ID
+    pub fn with_req_id(mut self, id: u64) -> Self {
+        self.req_id = Some(id);
+        self
+    }
+}
+
+// ============================================================================
+// Trading Response Types
+// ============================================================================
+
+/// Add order response result
+#[derive(Debug, Clone, Deserialize)]
+pub struct AddOrderResult {
+    /// Assigned order ID
+    pub order_id: String,
+    /// Client order ID (if provided)
+    #[serde(default)]
+    pub cl_ord_id: Option<String>,
+    /// Order status
+    #[serde(default)]
+    pub order_status: Option<String>,
+    /// Order creation timestamp
+    #[serde(default)]
+    pub timestamp: Option<String>,
+}
+
+/// Cancel order response result
+#[derive(Debug, Clone, Deserialize)]
+pub struct CancelOrderResult {
+    /// Order ID that was canceled
+    pub order_id: String,
+    /// Client order ID
+    #[serde(default)]
+    pub cl_ord_id: Option<String>,
+}
+
+/// Cancel all response result
+#[derive(Debug, Clone, Deserialize)]
+pub struct CancelAllResult {
+    /// Number of orders canceled
+    pub count: u32,
+}
+
+/// Cancel on disconnect response result
+#[derive(Debug, Clone, Deserialize)]
+pub struct CancelOnDisconnectResult {
+    /// Current timeout setting
+    #[serde(default)]
+    pub current_time: Option<String>,
+    /// Trigger time (when orders will be canceled)
+    #[serde(default)]
+    pub trigger_time: Option<String>,
+}
+
+/// Batch order response
+#[derive(Debug, Clone, Deserialize)]
+pub struct BatchOrderResult {
+    /// Results for each order in the batch
+    #[serde(default)]
+    pub orders: Vec<BatchOrderResultItem>,
+}
+
+/// Individual batch order result
+#[derive(Debug, Clone, Deserialize)]
+pub struct BatchOrderResultItem {
+    /// Order ID
+    #[serde(default)]
+    pub order_id: Option<String>,
+    /// Client order ID
+    #[serde(default)]
+    pub cl_ord_id: Option<String>,
+    /// Error message if failed
+    #[serde(default)]
+    pub error: Option<String>,
+}
+
+/// Helper function to serialize Decimal as string
+fn serialize_decimal<S>(value: &Decimal, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.serialize_str(&value.to_string())
+}
+
+/// Helper function to serialize Option<Decimal> as string
+fn serialize_option_decimal<S>(value: &Option<Decimal>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    match value {
+        Some(d) => serializer.serialize_str(&d.to_string()),
+        None => serializer.serialize_none(),
+    }
+}
+
+// ============================================================================
 // Convenience Type Aliases
 // ============================================================================
 
@@ -560,7 +1052,7 @@ pub type BalancesMessage = ChannelMessage<WalletData>;
 /// Parsed message from WebSocket
 #[derive(Debug, Clone)]
 pub enum WsMessage {
-    /// Method response (subscribe, unsubscribe, pong)
+    /// Method response (subscribe, unsubscribe, pong, trading responses)
     Method(MethodResponse),
     /// Status channel update
     Status(StatusMessage),
@@ -578,6 +1070,8 @@ pub enum WsMessage {
     Executions(ExecutionsMessage),
     /// Balances channel update (private - requires auth)
     Balances(BalancesMessage),
+    /// Level 3 orders channel update (requires special access)
+    Level3(L3Message),
     /// Heartbeat message
     Heartbeat,
     /// Unknown/unsupported message
@@ -634,6 +1128,10 @@ impl WsMessage {
                 let msg: BalancesMessage = serde_json::from_value(value)?;
                 Ok(Self::Balances(msg))
             }
+            Some("level3") => {
+                let msg: L3Message = serde_json::from_value(value)?;
+                Ok(Self::Level3(msg))
+            }
             Some("heartbeat") => Ok(Self::Heartbeat),
             _ => Ok(Self::Unknown(value)),
         }
@@ -647,6 +1145,25 @@ impl WsMessage {
     /// Check if this is a book update
     pub fn is_book_update(&self) -> bool {
         matches!(self, Self::Book(msg) if msg.msg_type == "update")
+    }
+
+    /// Check if this is an L3 snapshot
+    pub fn is_l3_snapshot(&self) -> bool {
+        matches!(self, Self::Level3(msg) if msg.msg_type == "snapshot")
+    }
+
+    /// Check if this is an L3 update
+    pub fn is_l3_update(&self) -> bool {
+        matches!(self, Self::Level3(msg) if msg.msg_type == "update")
+    }
+
+    /// Check if this is a trading method response (add_order, cancel_order, etc.)
+    pub fn is_trading_response(&self) -> bool {
+        matches!(self, Self::Method(resp) if matches!(
+            resp.method.as_str(),
+            "add_order" | "amend_order" | "edit_order" | "cancel_order" |
+            "cancel_all" | "cancel_all_orders_after" | "batch_add" | "batch_cancel"
+        ))
     }
 }
 
