@@ -172,7 +172,7 @@ kraken-sdk       # High-level API
 kraken-wasm      # Browser bindings (wraps kraken-book)
 ```
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed information.
+See the main [README](README.md) for architecture details and advanced usage.
 
 ## Getting Help
 
