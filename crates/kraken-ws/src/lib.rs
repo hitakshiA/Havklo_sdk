@@ -51,7 +51,12 @@ pub mod subscription;
 // Re-export main types
 pub use connection::{ConnectionConfig, ConnectionState, KrakenConnection};
 pub use endpoint::Endpoint;
-pub use events::{ConnectionEvent, DisconnectReason, Event, MarketEvent, SubscriptionEvent};
+pub use events::{
+    // Connection events
+    ConnectionEvent, DisconnectReason, Event, MarketEvent, SubscriptionEvent,
+    // Private channel events
+    PrivateEvent, OrderStatus, TrackedOrder, OrderFill, ExecutionType, OrderChange, BalanceInfo,
+};
 pub use rate_limiter::{KrakenRateLimiter, SharedRateLimiter, shared_rate_limiter};
 pub use reconnect::ReconnectConfig;
 pub use subscription::{Subscription, SubscriptionManager};
