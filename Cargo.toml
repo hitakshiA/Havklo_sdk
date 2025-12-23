@@ -8,6 +8,7 @@ members = [
     "crates/kraken-futures-ws",
     "crates/kraken-sdk",
     "crates/kraken-wasm",
+    "demos",
 ]
 
 [workspace.package]

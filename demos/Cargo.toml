@@ -1,0 +1,57 @@
+[package]
+name = "havklo-demos"
+version = "0.1.0"
+edition = "2021"
+description = "Demo applications showcasing Havklo SDK capabilities"
+publish = false
+
+[dependencies]
+kraken-sdk = { path = "../crates/kraken-sdk" }
+kraken-book = { path = "../crates/kraken-book" }
+kraken-types = { path = "../crates/kraken-types" }
+kraken-futures-ws = { path = "../crates/kraken-futures-ws" }
+tokio = { version = "1", features = ["full"] }
+rust_decimal = "1.33"
+rust_decimal_macros = "1.33"
+colored = "2.1"
+chrono = "0.4"
+
+[[bin]]
+name = "spread_monitor"
+path = "src/bin/spread_monitor.rs"
+
+[[bin]]
+name = "multi_symbol"
+path = "src/bin/multi_symbol.rs"
+
+[[bin]]
+name = "vwap_calculator"
+path = "src/bin/vwap_calculator.rs"
+
+[[bin]]
+name = "queue_position"
+path = "src/bin/queue_position.rs"
+
+[[bin]]
+name = "checksum_monitor"
+path = "src/bin/checksum_monitor.rs"
+
+[[bin]]
+name = "reconnect_demo"
+path = "src/bin/reconnect_demo.rs"
+
+[[bin]]
+name = "funding_rates"
+path = "src/bin/funding_rates.rs"
+
+[[bin]]
+name = "imbalance_analyzer"
+path = "src/bin/imbalance_analyzer.rs"
+
+[[bin]]
+name = "price_alerts"
+path = "src/bin/price_alerts.rs"
+
+[[bin]]
+name = "depth_chart"
+path = "src/bin/depth_chart.rs"
