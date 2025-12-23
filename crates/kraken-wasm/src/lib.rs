@@ -257,6 +257,19 @@ impl WasmOrderbook {
         self.inner.reset();
     }
 
+    /// Set precision for checksum calculation
+    ///
+    /// Each trading pair has specific precision values for price and quantity.
+    /// This must be set correctly for checksum validation to work.
+    ///
+    /// # Arguments
+    /// * `price_precision` - Decimal places for prices (e.g., 1 for BTC/USD, 2 for ETH/USD)
+    /// * `qty_precision` - Decimal places for quantities (usually 8)
+    #[wasm_bindgen]
+    pub fn set_precision(&mut self, price_precision: u8, qty_precision: u8) {
+        self.inner.set_precision(price_precision, qty_precision);
+    }
+
     // ========== History/Time-Travel Features ==========
 
     /// Enable history tracking for time-travel feature
