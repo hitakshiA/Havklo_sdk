@@ -10,9 +10,11 @@
 //! - [`Channel`], [`Depth`], [`Side`] - Subscription enums
 //! - [`WsMessage`] - Parsed WebSocket message
 //! - [`KrakenError`] - Error types
+//! - [`KrakenApiError`], [`KrakenErrorCode`] - Comprehensive Kraken API error mapping
 
 pub mod enums;
 pub mod error;
+pub mod error_codes;
 pub mod level;
 pub mod messages;
 pub mod symbol;
@@ -20,6 +22,7 @@ pub mod symbol;
 // Re-export commonly used types
 pub use enums::*;
 pub use error::*;
+pub use error_codes::*;
 pub use level::*;
 pub use messages::*;
 pub use symbol::*;

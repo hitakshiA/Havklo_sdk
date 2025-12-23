@@ -3,6 +3,8 @@
 use std::time::Duration;
 use thiserror::Error;
 
+use crate::error_codes::{KrakenApiError as ParsedApiError, KrakenErrorCode, RecoveryStrategy};
+
 /// Main error type for Kraken SDK operations
 #[derive(Error, Debug)]
 pub enum KrakenError {
@@ -71,6 +73,20 @@ pub enum KrakenError {
     #[error("Cloudflare connection limit exceeded, wait 10 minutes")]
     CloudflareLimit,
 
+    // === API Errors (from Kraken responses) ===
+    /// Parsed Kraken API error with structured recovery
+    #[error("Kraken API error: {message}")]
+    ApiError {
+        /// The parsed error code (if recognized)
+        code: Option<KrakenErrorCode>,
+        /// Human-readable message
+        message: String,
+        /// Raw error string from Kraken
+        raw: String,
+        /// Recovery strategy for this error
+        recovery: RecoveryStrategy,
+    },
+
     // === Internal Errors ===
     /// Internal channel was closed unexpectedly
     #[error("Internal channel closed unexpectedly")]
@@ -92,14 +108,15 @@ pub enum KrakenError {
 impl KrakenError {
     /// Returns true if this error is potentially recoverable via retry
     pub fn is_retryable(&self) -> bool {
-        matches!(
-            self,
+        match self {
             Self::ConnectionFailed { .. }
-                | Self::ConnectionTimeout { .. }
-                | Self::RateLimited { .. }
-                | Self::WebSocket(_)
-                | Self::ChecksumMismatch { .. }
-        )
+            | Self::ConnectionTimeout { .. }
+            | Self::RateLimited { .. }
+            | Self::WebSocket(_)
+            | Self::ChecksumMismatch { .. } => true,
+            Self::ApiError { recovery, .. } => recovery.allows_retry(),
+            _ => false,
+        }
     }
 
     /// Returns suggested retry delay, if applicable
@@ -109,6 +126,7 @@ impl KrakenError {
             Self::CloudflareLimit => Some(Duration::from_secs(600)),
             Self::ConnectionFailed { .. } => Some(Duration::from_millis(100)),
             Self::ConnectionTimeout { .. } => Some(Duration::from_millis(500)),
+            Self::ApiError { recovery, .. } => recovery.initial_delay(),
             _ => None,
         }
     }
@@ -119,6 +137,55 @@ impl KrakenError {
             self,
             Self::WebSocket(_) | Self::ConnectionFailed { .. } | Self::ChannelClosed
         )
+    }
+
+    /// Returns true if this error requires re-authentication
+    pub fn requires_reauth(&self) -> bool {
+        match self {
+            Self::TokenExpired | Self::AuthenticationFailed { .. } => true,
+            Self::ApiError { recovery, .. } => {
+                matches!(recovery, RecoveryStrategy::Reauthenticate)
+            }
+            _ => false,
+        }
+    }
+
+    /// Returns true if this is a rate limit error
+    pub fn is_rate_limit(&self) -> bool {
+        match self {
+            Self::RateLimited { .. } | Self::CloudflareLimit => true,
+            Self::ApiError { code, .. } => {
+                code.map(|c| c.is_rate_limit()).unwrap_or(false)
+            }
+            _ => false,
+        }
+    }
+
+    /// Get the recovery strategy for this error
+    pub fn recovery_strategy(&self) -> RecoveryStrategy {
+        match self {
+            Self::ApiError { recovery, .. } => recovery.clone(),
+            Self::RateLimited { .. } | Self::CloudflareLimit => {
+                RecoveryStrategy::rate_limit_backoff()
+            }
+            Self::ConnectionFailed { .. } | Self::ConnectionTimeout { .. } | Self::WebSocket(_) => {
+                RecoveryStrategy::Backoff {
+                    initial_ms: 100,
+                    max_ms: 30000,
+                    multiplier: 2,
+                }
+            }
+            Self::ChecksumMismatch { .. } => RecoveryStrategy::RequestSnapshot,
+            Self::TokenExpired | Self::AuthenticationFailed { .. } => {
+                RecoveryStrategy::Reauthenticate
+            }
+            Self::ChannelClosed | Self::ShuttingDown => RecoveryStrategy::Fatal,
+            Self::InvalidState { .. } | Self::Configuration(_) => RecoveryStrategy::Fatal,
+            Self::InvalidJson { .. } | Self::UnexpectedMessage(_) => RecoveryStrategy::Skip,
+            Self::SubscriptionRejected { .. }
+            | Self::SymbolNotFound { .. }
+            | Self::SubscriptionTimeout { .. } => RecoveryStrategy::Skip,
+        }
     }
 
     /// Create a checksum mismatch error
@@ -135,6 +202,42 @@ impl KrakenError {
         Self::SubscriptionRejected {
             channel: channel.into(),
             reason: reason.into(),
+        }
+    }
+
+    /// Create an API error from a Kraken error string
+    ///
+    /// This parses the error string and determines the appropriate recovery strategy.
+    pub fn from_api_error(error: impl AsRef<str>) -> Self {
+        let parsed = ParsedApiError::parse(error.as_ref());
+        Self::ApiError {
+            code: parsed.code,
+            message: parsed.message.clone(),
+            raw: parsed.raw.clone(),
+            recovery: parsed.recovery_strategy(),
+        }
+    }
+
+    /// Create an API error from multiple Kraken error strings
+    ///
+    /// Returns the first error if multiple are present (Kraken returns arrays).
+    pub fn from_api_errors(errors: &[String]) -> Self {
+        if errors.is_empty() {
+            return Self::ApiError {
+                code: None,
+                message: "Unknown error".to_string(),
+                raw: String::new(),
+                recovery: RecoveryStrategy::Manual,
+            };
+        }
+        Self::from_api_error(&errors[0])
+    }
+
+    /// Get the error code if this is an API error
+    pub fn error_code(&self) -> Option<KrakenErrorCode> {
+        match self {
+            Self::ApiError { code, .. } => *code,
+            _ => None,
         }
     }
 }
@@ -172,5 +275,59 @@ mod tests {
             computed: 456,
         };
         assert!(!err.requires_reconnect());
+    }
+
+    #[test]
+    fn test_from_api_error() {
+        let err = KrakenError::from_api_error("EAPI:Rate limit exceeded");
+        assert!(err.is_rate_limit());
+        assert!(err.is_retryable());
+        assert_eq!(err.error_code(), Some(KrakenErrorCode::RateLimitExceeded));
+    }
+
+    #[test]
+    fn test_from_api_error_auth() {
+        let err = KrakenError::from_api_error("EAPI:Invalid key");
+        assert!(err.requires_reauth());
+        assert_eq!(err.error_code(), Some(KrakenErrorCode::InvalidKey));
+    }
+
+    #[test]
+    fn test_from_api_error_insufficient_funds() {
+        let err = KrakenError::from_api_error("EOrder:Insufficient funds");
+        assert!(!err.is_retryable());
+        assert!(matches!(
+            err.recovery_strategy(),
+            RecoveryStrategy::UserAction { .. }
+        ));
+    }
+
+    #[test]
+    fn test_from_api_errors() {
+        let errors = vec![
+            "EOrder:Insufficient funds".to_string(),
+            "EOrder:Order minimum not met".to_string(),
+        ];
+        let err = KrakenError::from_api_errors(&errors);
+        assert_eq!(err.error_code(), Some(KrakenErrorCode::InsufficientFunds));
+    }
+
+    #[test]
+    fn test_recovery_strategy() {
+        let err = KrakenError::ChecksumMismatch {
+            symbol: "BTC/USD".into(),
+            expected: 123,
+            computed: 456,
+        };
+        assert!(matches!(
+            err.recovery_strategy(),
+            RecoveryStrategy::RequestSnapshot
+        ));
+
+        let err = KrakenError::TokenExpired;
+        assert!(matches!(
+            err.recovery_strategy(),
+            RecoveryStrategy::Reauthenticate
+        ));
     }
 }
