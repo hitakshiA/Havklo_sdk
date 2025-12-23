@@ -1,7 +1,7 @@
 //! Main REST client implementation
 
 use crate::auth::Credentials;
-use crate::endpoints::{AccountEndpoints, FundingEndpoints, MarketEndpoints, TradingEndpoints};
+use crate::endpoints::{AccountEndpoints, EarnEndpoints, FundingEndpoints, MarketEndpoints, TradingEndpoints};
 use crate::error::{RestError, RestResult};
 use crate::types::{
     BalanceInfo, CancelOrderResult, EditOrderResult, OrderRequest, OrderResponse, OrderbookData,
@@ -191,6 +191,49 @@ impl KrakenRestClient {
         asset: &str,
     ) -> RestResult<Vec<crate::types::DepositMethod>> {
         self.funding()?.get_deposit_methods(asset).await
+    }
+
+    // ========================================================================
+    // Private Earn Endpoints (Staking)
+    // ========================================================================
+
+    /// Get earn endpoints (requires credentials)
+    pub fn earn(&self) -> RestResult<EarnEndpoints<'_>> {
+        let creds = self.credentials.as_ref().ok_or(RestError::AuthRequired)?;
+        Ok(EarnEndpoints::new(&self.http_client, creds))
+    }
+
+    /// List available staking strategies
+    pub async fn list_earn_strategies(
+        &self,
+        asset: Option<&str>,
+    ) -> RestResult<crate::endpoints::earn::StrategiesResponse> {
+        self.earn()?.list_strategies(asset, None).await
+    }
+
+    /// List current allocations
+    pub async fn list_earn_allocations(
+        &self,
+    ) -> RestResult<crate::endpoints::earn::AllocationsResponse> {
+        self.earn()?.list_allocations(None, None, None).await
+    }
+
+    /// Allocate funds to a staking strategy
+    pub async fn allocate_earn(
+        &self,
+        strategy_id: &str,
+        amount: rust_decimal::Decimal,
+    ) -> RestResult<crate::endpoints::earn::AllocationResult> {
+        self.earn()?.allocate(strategy_id, amount).await
+    }
+
+    /// Deallocate funds from a staking strategy
+    pub async fn deallocate_earn(
+        &self,
+        strategy_id: &str,
+        amount: rust_decimal::Decimal,
+    ) -> RestResult<crate::endpoints::earn::DeallocationResult> {
+        self.earn()?.deallocate(strategy_id, amount).await
     }
 }
 

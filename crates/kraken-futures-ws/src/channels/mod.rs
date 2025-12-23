@@ -4,11 +4,13 @@ pub mod book;
 pub mod ticker;
 pub mod trade;
 pub mod position;
+pub mod funding;
 
 pub use book::BookChannel;
 pub use ticker::TickerChannel;
 pub use trade::TradeChannel;
 pub use position::PositionChannel;
+pub use funding::FundingChannel;
 
 /// Kraken Futures channel names
 pub mod channels {
@@ -22,6 +24,8 @@ pub mod channels {
     pub const TRADE: &str = "trade";
     /// Heartbeat
     pub const HEARTBEAT: &str = "heartbeat";
+    /// Funding rates feed
+    pub const FUNDING_RATES: &str = "funding_rates";
 
     // Private channels
     /// Open positions
