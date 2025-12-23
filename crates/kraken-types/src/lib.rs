@@ -11,12 +11,14 @@
 //! - [`WsMessage`] - Parsed WebSocket message
 //! - [`KrakenError`] - Error types
 //! - [`KrakenApiError`], [`KrakenErrorCode`] - Comprehensive Kraken API error mapping
+//! - [`TokenBucket`], [`RateLimitConfig`] - Client-side rate limiting
 
 pub mod enums;
 pub mod error;
 pub mod error_codes;
 pub mod level;
 pub mod messages;
+pub mod rate_limit;
 pub mod symbol;
 
 // Re-export commonly used types
@@ -25,6 +27,7 @@ pub use error::*;
 pub use error_codes::*;
 pub use level::*;
 pub use messages::*;
+pub use rate_limit::*;
 pub use symbol::*;
 
 // Re-export rust_decimal for users

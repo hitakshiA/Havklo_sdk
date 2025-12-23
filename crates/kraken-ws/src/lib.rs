@@ -44,6 +44,7 @@
 pub mod connection;
 pub mod endpoint;
 pub mod events;
+pub mod rate_limiter;
 pub mod reconnect;
 pub mod subscription;
 
@@ -51,5 +52,6 @@ pub mod subscription;
 pub use connection::{ConnectionConfig, ConnectionState, KrakenConnection};
 pub use endpoint::Endpoint;
 pub use events::{ConnectionEvent, DisconnectReason, Event, MarketEvent, SubscriptionEvent};
+pub use rate_limiter::{KrakenRateLimiter, SharedRateLimiter, shared_rate_limiter};
 pub use reconnect::ReconnectConfig;
 pub use subscription::{Subscription, SubscriptionManager};
