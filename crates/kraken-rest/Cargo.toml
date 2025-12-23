@@ -1,0 +1,37 @@
+[package]
+name = "kraken-rest"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "REST API client for Kraken cryptocurrency exchange"
+
+[features]
+default = []
+
+[dependencies]
+# Workspace dependencies
+serde = { workspace = true }
+serde_json = { workspace = true }
+rust_decimal = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+kraken-types = { workspace = true }
+
+# HTTP client
+reqwest = { version = "0.11", features = ["json"] }
+
+# URL encoding for POST data
+serde_urlencoded = "0.7"
+
+# Auth
+hmac = "0.12"
+sha2 = "0.10"
+base64 = "0.21"
+
+# Async
+tokio = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

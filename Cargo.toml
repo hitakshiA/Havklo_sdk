@@ -4,6 +4,7 @@ members = [
     "crates/kraken-types",
     "crates/kraken-book",
     "crates/kraken-ws",
+    "crates/kraken-rest",
     "crates/kraken-sdk",
     "crates/kraken-wasm",
 ]
@@ -56,6 +57,7 @@ console_error_panic_hook = "0.1"
 kraken-types = { path = "crates/kraken-types" }
 kraken-book = { path = "crates/kraken-book" }
 kraken-ws = { path = "crates/kraken-ws" }
+kraken-rest = { path = "crates/kraken-rest" }
 kraken-sdk = { path = "crates/kraken-sdk" }
 
 # Benchmarking
