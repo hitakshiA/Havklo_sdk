@@ -38,6 +38,8 @@ parking_lot = { version = "0.12", optional = true }
 [dev-dependencies]
 tracing-subscriber = { workspace = true }
 rust_decimal_macros = { workspace = true }
+kraken-rest = { path = "../kraken-rest" }
+kraken-futures-ws = { path = "../kraken-futures-ws" }
 
 [[example]]
 name = "simple_ticker"
@@ -50,3 +52,12 @@ name = "multi_symbol"
 
 [[example]]
 name = "advanced_reconnect"
+
+[[example]]
+name = "rest_trading"
+
+[[example]]
+name = "futures_stream"
+
+[[example]]
+name = "market_maker"
