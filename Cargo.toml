@@ -9,6 +9,7 @@ members = [
     "crates/kraken-sdk",
     "crates/kraken-wasm",
     "demos",
+    "havklo-tui",
 ]
 
 [workspace.package]

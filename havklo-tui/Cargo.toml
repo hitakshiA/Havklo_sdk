@@ -1,0 +1,33 @@
+[package]
+name = "havklo-tui"
+version = "0.1.0"
+edition = "2021"
+description = "Stunning terminal UI for Havklo SDK - Real-time Kraken market data"
+authors = ["Havklo"]
+license = "MIT OR Apache-2.0"
+
+[[bin]]
+name = "havklo"
+path = "src/main.rs"
+
+[dependencies]
+# TUI Framework
+ratatui = "0.29"
+crossterm = "0.28"
+
+# Havklo SDK
+kraken-sdk = { path = "../crates/kraken-sdk" }
+kraken-book = { path = "../crates/kraken-book" }
+kraken-types = { path = "../crates/kraken-types" }
+kraken-futures-ws = { path = "../crates/kraken-futures-ws" }
+
+# Async Runtime
+tokio = { version = "1", features = ["full"] }
+
+# Data Types
+rust_decimal = "1.33"
+rust_decimal_macros = "1.33"
+chrono = "0.4"
+
+# Error Handling
+anyhow = "1.0"
