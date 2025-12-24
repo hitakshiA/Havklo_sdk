@@ -45,6 +45,7 @@ pub mod circuit_breaker;
 pub mod connection;
 pub mod endpoint;
 pub mod events;
+pub mod hooks;
 pub mod order_tracker;
 pub mod rate_limiter;
 pub mod reconnect;
@@ -67,6 +68,7 @@ pub use reconnect::ReconnectConfig;
 pub use subscription::Subscription;
 pub use trading::TradingClient;
 pub use transport::{Transport, TransportError, WsTransport};
+pub use hooks::{Hooks, ConnectInfo, DisconnectInfo, SubscriptionInfo, ChecksumInfo};
 
 // Re-export MockTransport when test-utils feature is enabled
 #[cfg(any(test, feature = "test-utils"))]

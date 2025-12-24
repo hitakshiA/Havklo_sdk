@@ -8,6 +8,8 @@ use crate::subscription::{Subscription, SubscriptionManager};
 
 use dashmap::DashMap;
 use futures_util::{SinkExt, StreamExt};
+use std::pin::Pin;
+use std::task::{Context, Poll};
 use kraken_book::Orderbook;
 use kraken_types::{Channel, Depth, KrakenError, MethodResponse, WsMessage};
 use parking_lot::RwLock;
@@ -221,6 +223,17 @@ impl EventReceiver {
         match self {
             EventReceiver::Unbounded(rx) => rx.recv().await,
             EventReceiver::Bounded(rx) => rx.recv().await,
+        }
+    }
+}
+
+impl futures::Stream for EventReceiver {
+    type Item = Event;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        match self.get_mut() {
+            EventReceiver::Unbounded(rx) => Pin::new(rx).poll_recv(cx),
+            EventReceiver::Bounded(rx) => Pin::new(rx).poll_recv(cx),
         }
     }
 }

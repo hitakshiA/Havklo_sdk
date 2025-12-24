@@ -180,6 +180,95 @@ See the main [README](README.md) for architecture details and advanced usage.
 - Check existing issues before creating new ones
 - For questions, use GitHub Discussions
 
+## Stability Policy
+
+### Stable APIs
+
+The following are considered stable and follow strict SemVer:
+
+- `KrakenClient` builder and public methods
+- `Event` enum variants and their fields
+- `KrakenError` enum variants
+- All types in `kraken_types` crate
+- `Orderbook` and `L3Book` public methods
+
+### Unstable/Internal APIs
+
+The following may change without major version bump:
+
+- Anything marked `#[doc(hidden)]`
+- Internal modules (not re-exported in `prelude`)
+- Benchmark utilities
+- Test helpers
+
+### What We Consider Breaking Changes
+
+- Removing public API items
+- Changing function signatures
+- Adding required fields to structs (without defaults)
+- Changing error variants in ways that break matching
+- MSRV increases
+
+### What We Do NOT Consider Breaking
+
+- Adding new `#[non_exhaustive]` enum variants
+- Adding optional fields to structs
+- Performance improvements
+- Bug fixes (even if code relied on buggy behavior)
+- Dependency updates (unless they change our public API)
+
+## SemVer Discipline
+
+We follow [Semantic Versioning 2.0.0](https://semver.org/):
+
+- **MAJOR** (1.0.0 → 2.0.0): Breaking API changes
+- **MINOR** (1.0.0 → 1.1.0): New features, backward compatible
+- **PATCH** (1.0.0 → 1.0.1): Bug fixes, backward compatible
+
+### Pre-1.0 Guarantees
+
+While we're pre-1.0:
+- MINOR bumps may include breaking changes
+- PATCH bumps are always backward compatible
+- We'll clearly document breaking changes in CHANGELOG.md
+
+### Protocol Changes
+
+Kraken may change their WebSocket API. We handle this as:
+- **Additive changes** (new fields): PATCH or MINOR
+- **Breaking changes** (removed fields): MAJOR (or MINOR pre-1.0)
+- **New channels**: MINOR
+
+## Yank Policy
+
+We will yank a published version if:
+
+1. **Security vulnerability**: Critical security issues
+2. **Data corruption**: Bugs that could corrupt orderbook state
+3. **Compilation failure**: Version doesn't compile on advertised MSRV
+4. **Dependency issue**: Yanked or broken dependency
+
+We will **NOT** yank for:
+- Minor bugs with workarounds
+- Performance regressions
+- Feature requests
+
+### Yank Process
+
+1. Open a GitHub issue explaining the yank reason
+2. Publish a patched version first (if possible)
+3. Yank the affected version(s)
+4. Update CHANGELOG.md with yank notice
+
+## Issue Triage
+
+Issues will be closed immediately if:
+- Duplicate of existing issue
+- Not using latest stable version
+- No reproduction steps provided
+- Feature requests for out-of-scope items (see README non-goals)
+- Questions that belong in Discussions
+
 ## License
 
 By contributing, you agree that your contributions will be licensed under the MIT License.

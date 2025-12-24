@@ -3,35 +3,53 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-*'
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  create-release:
-    name: Create Release
+  # Validate the release before creating it
+  validate:
+    name: Validate Release
     runs-on: ubuntu-latest
-    outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
         with:
-          tag_name: ${{ github.ref_name }}
-          release_name: Release ${{ github.ref_name }}
-          draft: false
-          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+          components: clippy, rustfmt
 
+      - name: Verify formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Run tests
+        run: cargo test --workspace --all-features
+
+      - name: Verify docs build
+        run: cargo doc --workspace --no-deps
+        env:
+          RUSTDOCFLAGS: -D warnings
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Check package
+        run: |
+          cargo package -p kraken-types --allow-dirty
+          cargo package -p kraken-book --allow-dirty
+
+  # Build WASM artifacts
   build-wasm:
-    name: Build WASM Package
+    name: Build WASM
     runs-on: ubuntu-latest
-    needs: create-release
+    needs: validate
     steps:
       - uses: actions/checkout@v4
 
@@ -46,37 +64,78 @@ jobs:
       - name: Build WASM
         run: |
           cd crates/kraken-wasm
-          wasm-pack build --target web --out-dir ../../pkg
+          wasm-pack build --target web --release
 
-      - name: Create WASM archive
+      - name: Package WASM artifacts
         run: |
-          cd pkg
-          zip -r ../kraken-wasm-${{ github.ref_name }}.zip .
+          cd crates/kraken-wasm/pkg
+          zip -r ../../../kraken-wasm-${{ github.ref_name }}.zip .
 
-      - name: Upload WASM Package
-        uses: actions/upload-release-asset@v1
+      - name: Upload WASM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm-package
+          path: kraken-wasm-${{ github.ref_name }}.zip
+
+  # Create GitHub Release
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [validate, build-wasm]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download WASM artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: wasm-package
+
+      - name: Extract changelog for this version
+        id: changelog
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          # Extract section for this version from CHANGELOG.md
+          awk "/^## \[${VERSION}\]/{flag=1; next} /^## \[/{flag=0} flag" CHANGELOG.md > release_notes.md
+          if [ ! -s release_notes.md ]; then
+            echo "No changelog entry found for version $VERSION"
+            echo "See [CHANGELOG.md](CHANGELOG.md) for details." > release_notes.md
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          body_path: release_notes.md
+          files: |
+            kraken-wasm-${{ github.ref_name }}.zip
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: kraken-wasm-${{ github.ref_name }}.zip
-          asset_name: kraken-wasm-${{ github.ref_name }}.zip
-          asset_content_type: application/zip
 
-  # Optional: Publish to crates.io
-  # Uncomment when ready to publish
+  # Publish to crates.io (manual trigger only)
+  # Uncomment when ready for crates.io publishing
   # publish:
   #   name: Publish to crates.io
   #   runs-on: ubuntu-latest
-  #   needs: [build-wasm]
+  #   needs: release
+  #   if: ${{ !contains(github.ref_name, '-') }}  # Skip pre-releases
   #   steps:
   #     - uses: actions/checkout@v4
-  #     - uses: dtolnay/rust-action@stable
-  #     - name: Publish crates
+  #
+  #     - name: Install Rust toolchain
+  #       uses: dtolnay/rust-action@stable
+  #
+  #     - name: Publish kraken-types
+  #       run: cargo publish -p kraken-types
   #       env:
   #         CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-  #       run: |
-  #         cargo publish -p kraken-types
-  #         cargo publish -p kraken-book
-  #         cargo publish -p kraken-ws
-  #         cargo publish -p kraken-sdk
+  #
+  #     - name: Wait for crates.io index update
+  #       run: sleep 30
+  #
+  #     - name: Publish kraken-book
+  #       run: cargo publish -p kraken-book
+  #       env:
+  #         CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}

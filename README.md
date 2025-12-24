@@ -245,6 +245,26 @@ match event {
 - No networking code
 - Pure computation with `rust_decimal` and standard collections
 
+### Time, Ordering & Semantics
+
+**Timestamp Strategy:**
+- All timestamps from Kraken are preserved as ISO 8601 strings (e.g., `"2024-01-15T10:30:00.123456Z"`)
+- The SDK does **not** normalize or convert timestamps—what Kraken sends is what you receive
+- For local timing (reconnect delays, rate limiting), we use `std::time::Instant`
+- Connection uptime uses `std::time::Instant` for monotonic measurement
+
+**Ordering Guarantees:**
+- Events within a single WebSocket connection are delivered in wire order
+- Orderbook updates for a symbol are sequential—you'll never see update N+1 before N
+- After reconnection, you receive a fresh snapshot before any deltas
+- Cross-symbol ordering is **not** guaranteed (BTC update may arrive before ETH even if ETH occurred first)
+
+**Reconnection Semantics:**
+- On reconnect, all active subscriptions are automatically restored
+- A `ConnectionEvent::SubscriptionsRestored` event signals when resubscription completes
+- Orderbooks are reset and repopulated from fresh snapshots—no stale data carries over
+- Your application should treat `SubscriptionsRestored` as "safe to resume processing"
+
 ## Advanced Features
 
 ### L3 Orderbook (Order-Level Depth)
@@ -387,6 +407,22 @@ cargo bench -p kraken-book
 # Live validation (connects to real Kraken)
 cargo run --example live_validation
 ```
+
+## Kraken API Quirks
+
+Behaviors specific to Kraken that may differ from other exchanges:
+
+| Quirk | Description | SDK Handling |
+|-------|-------------|--------------|
+| **Scientific notation** | Large/small numbers sent as `"1.5e-8"` | Parsed automatically to `Decimal` |
+| **Checksum on book** | CRC32 checksum with every orderbook message | Validated; mismatch triggers re-snapshot |
+| **Snapshot before deltas** | Always sends full snapshot before streaming updates | SDK waits for snapshot before processing |
+| **Symbol format** | Uses `"BTC/USD"` not `"BTCUSD"` or `"BTC-USD"` | Use exact Kraken format |
+| **Rate limits vary** | Different limits for public vs private, by tier | Built-in rate limiting respects tiers |
+| **Heartbeat interval** | ~30 seconds, connection considered dead after 60s | Auto-detected, triggers reconnect |
+| **L3 requires approval** | Level 3 orderbook needs Kraken account approval | Separate endpoint, documented in examples |
+| **Futures separate endpoint** | Futures uses different WebSocket URL than spot | `kraken-futures-ws` handles this |
+| **Token expiry** | WebSocket tokens expire, need refresh | `kraken-auth` handles auto-refresh |
 
 ## API Compatibility
 
