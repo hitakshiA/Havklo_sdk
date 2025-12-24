@@ -107,6 +107,93 @@ impl WasmOrderbook {
         }
     }
 
+    /// Apply a message and return orderbook state in one call
+    ///
+    /// This is the recommended method for browser use as it avoids
+    /// multiple WASM calls which can cause borrow conflicts.
+    ///
+    /// Returns an object with:
+    /// ```javascript
+    /// {
+    ///   type: "snapshot" | "update" | "ignored",
+    ///   bids: [{price, qty}, ...],
+    ///   asks: [{price, qty}, ...],
+    ///   best_bid: number,
+    ///   best_ask: number,
+    ///   spread: number,
+    ///   mid_price: number
+    /// }
+    /// ```
+    #[wasm_bindgen]
+    pub fn apply_and_get(&mut self, json: &str, depth: u32) -> Result<JsValue, JsValue> {
+        let msg = WsMessage::parse(json).map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+        let msg_type = match msg {
+            WsMessage::Book(book_msg) => {
+                if let Some(data) = book_msg.data.first() {
+                    let is_snapshot = book_msg.msg_type == "snapshot";
+                    let result = self
+                        .inner
+                        .apply_book_data(data, is_snapshot)
+                        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+                    // Skip history to avoid extra iteration
+                    match result {
+                        kraken_book::ApplyResult::Snapshot => "snapshot",
+                        kraken_book::ApplyResult::Update => "update",
+                        kraken_book::ApplyResult::Ignored => "ignored",
+                    }
+                } else {
+                    "ignored"
+                }
+            }
+            _ => "ignored",
+        };
+
+        // Only read data for snapshot/update, not ignored
+        if msg_type == "ignored" {
+            let response = JsBookUpdate {
+                msg_type: msg_type.to_string(),
+                bids: vec![],
+                asks: vec![],
+                best_bid: 0.0,
+                best_ask: 0.0,
+                spread: 0.0,
+                mid_price: 0.0,
+            };
+            return serde_wasm_bindgen::to_value(&response).map_err(|e| JsValue::from_str(&e.to_string()));
+        }
+
+        // Safely collect data - use bids_vec/asks_vec which clone
+        let bids_data = self.inner.bids_vec();
+        let asks_data = self.inner.asks_vec();
+
+        let bids: Vec<JsLevel> = bids_data.iter().take(depth as usize).map(|l| JsLevel {
+            price: l.price_f64(),
+            qty: l.qty_f64(),
+        }).collect();
+
+        let asks: Vec<JsLevel> = asks_data.iter().take(depth as usize).map(|l| JsLevel {
+            price: l.price_f64(),
+            qty: l.qty_f64(),
+        }).collect();
+
+        let best_bid = bids_data.first().map(|l| l.price_f64()).unwrap_or(0.0);
+        let best_ask = asks_data.first().map(|l| l.price_f64()).unwrap_or(0.0);
+
+        let response = JsBookUpdate {
+            msg_type: msg_type.to_string(),
+            bids,
+            asks,
+            best_bid,
+            best_ask,
+            spread: if best_bid > 0.0 && best_ask > 0.0 { best_ask - best_bid } else { 0.0 },
+            mid_price: if best_bid > 0.0 && best_ask > 0.0 { (best_ask + best_bid) / 2.0 } else { 0.0 },
+        };
+
+        serde_wasm_bindgen::to_value(&response).map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+
     /// Get the trading pair symbol
     #[wasm_bindgen]
     pub fn get_symbol(&self) -> String {
@@ -359,6 +446,18 @@ impl WasmOrderbook {
 struct JsLevel {
     price: f64,
     qty: f64,
+}
+
+/// JavaScript-friendly book update response
+#[derive(serde::Serialize)]
+struct JsBookUpdate {
+    msg_type: String,
+    bids: Vec<JsLevel>,
+    asks: Vec<JsLevel>,
+    best_bid: f64,
+    best_ask: f64,
+    spread: f64,
+    mid_price: f64,
 }
 
 /// JavaScript-friendly snapshot
