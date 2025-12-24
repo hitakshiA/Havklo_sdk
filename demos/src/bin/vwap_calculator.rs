@@ -49,13 +49,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut book = L3Book::new("BTC/USD", 100);
         for (i, level) in bids.iter().enumerate() {
             book.add_order(
-                L3Order::new(&format!("bid_{}", i), level.price, level.qty),
+                L3Order::new(format!("bid_{}", i), level.price, level.qty),
                 L3Side::Bid,
             );
         }
         for (i, level) in asks.iter().enumerate() {
             book.add_order(
-                L3Order::new(&format!("ask_{}", i), level.price, level.qty),
+                L3Order::new(format!("ask_{}", i), level.price, level.qty),
                 L3Side::Ask,
             );
         }

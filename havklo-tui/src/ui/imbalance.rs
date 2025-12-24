@@ -82,9 +82,7 @@ fn render_large_gauge(frame: &mut Frame, imbalance: f64, area: Rect) {
     for i in 0..gauge_width {
         if i == position {
             bar.push('●');
-        } else if i < center && i >= position {
-            bar.push('▓');
-        } else if i > center && i <= position {
+        } else if (i < center && i >= position) || (i > center && i <= position) {
             bar.push('▓');
         } else {
             bar.push('░');

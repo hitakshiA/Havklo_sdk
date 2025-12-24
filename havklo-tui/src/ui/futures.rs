@@ -74,6 +74,7 @@ pub fn render(frame: &mut Frame, _app: &mut App, area: Rect) {
     frame.render_widget(Paragraph::new(footer).alignment(Alignment::Center), layout[2]);
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_futures_row(
     frame: &mut Frame,
     product: &str,

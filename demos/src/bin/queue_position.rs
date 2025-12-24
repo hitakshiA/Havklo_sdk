@@ -49,7 +49,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let qty_per_order = level.qty / dec!(3);
             for j in 0..3 {
                 book.add_order(
-                    L3Order::new(&format!("bid_{}_{}", i, j), level.price, qty_per_order),
+                    L3Order::new(format!("bid_{}_{}", i, j), level.price, qty_per_order),
                     L3Side::Bid,
                 );
             }
@@ -58,7 +58,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let qty_per_order = level.qty / dec!(3);
             for j in 0..3 {
                 book.add_order(
-                    L3Order::new(&format!("ask_{}_{}", i, j), level.price, qty_per_order),
+                    L3Order::new(format!("ask_{}_{}", i, j), level.price, qty_per_order),
                     L3Side::Ask,
                 );
             }

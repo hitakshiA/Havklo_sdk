@@ -49,10 +49,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Build L3 book for imbalance calculation
         let mut book = L3Book::new("BTC/USD", 50);
         for (i, level) in bids.iter().enumerate() {
-            book.add_order(L3Order::new(&format!("b{}", i), level.price, level.qty), L3Side::Bid);
+            book.add_order(L3Order::new(format!("b{}", i), level.price, level.qty), L3Side::Bid);
         }
         for (i, level) in asks.iter().enumerate() {
-            book.add_order(L3Order::new(&format!("a{}", i), level.price, level.qty), L3Side::Ask);
+            book.add_order(L3Order::new(format!("a{}", i), level.price, level.qty), L3Side::Ask);
         }
 
         let imbalance = book.imbalance().unwrap_or(0.0);
@@ -93,12 +93,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         gauge[center] = '│';
 
         if position > center {
-            for i in center..=position.min(gauge_width - 1) {
-                gauge[i] = '█';
+            for cell in gauge.iter_mut().take(position.min(gauge_width - 1) + 1).skip(center) {
+                *cell = '█';
             }
         } else {
-            for i in position..center {
-                gauge[i] = '█';
+            for cell in gauge.iter_mut().take(center).skip(position) {
+                *cell = '█';
             }
         }
 

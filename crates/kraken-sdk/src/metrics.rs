@@ -442,6 +442,7 @@ pub fn record_orderbook_update(symbol: &str, update_type: &str, duration_secs: f
 }
 
 /// Update all orderbook metrics at once
+#[allow(clippy::too_many_arguments)]
 pub fn update_orderbook_metrics(
     symbol: &str,
     bid_depth: usize,

@@ -1104,7 +1104,7 @@ async fn test_performance(runner: &mut TestRunner) {
     if result.unwrap_or(false) {
         runner.pass("PERFORMANCE", "Snapshot latency", format!("{:.2}s", latency.as_secs_f64()), start);
     } else {
-        runner.fail("PERFORMANCE", "Snapshot latency", format!("No snapshot within 60s"), start);
+        runner.fail("PERFORMANCE", "Snapshot latency", "No snapshot within 60s".to_string(), start);
     }
 
     // 10.2 Update Throughput

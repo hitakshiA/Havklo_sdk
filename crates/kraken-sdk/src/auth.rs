@@ -230,9 +230,10 @@ const REFRESH_BUFFER_SECS: u64 = 60;
 const MIN_REFRESH_INTERVAL_SECS: u64 = 30;
 
 /// State of the authentication token
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum TokenState {
     /// No token has been fetched yet
+    #[default]
     NotInitialized,
     /// Token is valid and ready to use
     Valid,
@@ -244,11 +245,6 @@ pub enum TokenState {
     Error(String),
 }
 
-impl Default for TokenState {
-    fn default() -> Self {
-        Self::NotInitialized
-    }
-}
 
 /// Cached token with metadata
 #[derive(Debug, Clone)]

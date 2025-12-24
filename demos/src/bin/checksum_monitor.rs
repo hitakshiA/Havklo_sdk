@@ -56,7 +56,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Event::Market(MarketEvent::OrderbookUpdate { symbol, .. }) => {
                 update_count += 1;
                 // Only print every 10th update
-                if update_count % 10 == 0 {
+                if update_count.is_multiple_of(10) {
                     let checksum = client.checksum(&symbol).unwrap_or(0);
                     println!(
                         "  {:>12}  {:>15}  {:>12}  {:>8}",

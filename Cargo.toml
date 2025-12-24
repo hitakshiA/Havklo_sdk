@@ -17,7 +17,7 @@ version = "0.1.0"
 edition = "2021"
 license = "MIT"
 authors = ["Hitakshi Arora"]
-repository = "https://github.com/havklo/havklo-sdk"
+repository = "https://github.com/hitakshiA/Havklo_sdk"
 description = "Production-grade Rust SDK for Kraken's WebSocket API v2"
 
 [workspace.dependencies]

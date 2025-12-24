@@ -84,6 +84,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or(dec!(3500));
 
     // Create alerts relative to current price
+    #[allow(clippy::useless_vec)]
     let mut alerts = vec![
         PriceAlert { symbol: "BTC/USD".into(), condition: AlertCondition::Above(btc_mid + dec!(50)), triggered: false },
         PriceAlert { symbol: "BTC/USD".into(), condition: AlertCondition::Below(btc_mid - dec!(50)), triggered: false },
@@ -117,9 +118,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     alert_count += 1;
                     let timestamp = chrono::Local::now().format("%H:%M:%S");
                     println!(
-                        "  {} {} {} {}",
+                        "  {} 🔔 {} {}",
                         format!("[{}]", timestamp).dimmed(),
-                        "🔔",
                         "ALERT:".red().bold(),
                         msg.yellow()
                     );
@@ -134,9 +134,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     alert_count += 1;
                     let timestamp = chrono::Local::now().format("%H:%M:%S");
                     println!(
-                        "  {} {} {} {}",
+                        "  {} 🔔 {} {}",
                         format!("[{}]", timestamp).dimmed(),
-                        "🔔",
                         "ALERT:".red().bold(),
                         msg.yellow()
                     );
