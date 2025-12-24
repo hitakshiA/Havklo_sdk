@@ -16,6 +16,24 @@ A high-performance Rust SDK for Kraken's WebSocket APIs. Built for algorithmic t
 - **Browser support** via WebAssembly
 - **Financial precision** using `rust_decimal` (no floating point errors)
 
+## Scope & Non-Goals
+
+### In Scope
+
+- Kraken WebSocket API v2 (Spot + Futures)
+- Real-time market data streaming
+- WebSocket-based order management
+- Orderbook state management with validation
+- Automatic reconnection and fault tolerance
+
+### Non-Goals
+
+- **REST API**: Use `krakenex` or direct HTTP for REST endpoints
+- **Historical data**: This SDK is for real-time streaming only
+- **Portfolio management**: No position tracking or P&L calculation
+- **Strategy execution**: No built-in trading strategies
+- **Cross-exchange**: Kraken only, no unified exchange abstraction
+
 ## Performance
 
 All benchmarks run on Apple M1 Pro. Numbers represent median times.
@@ -199,6 +217,26 @@ Configuration:
 ### Zero-Copy Event Handling
 
 Events are delivered via `tokio::sync::mpsc` channels. The connection task writes, your handler reads—no intermediate copies.
+
+### Backpressure & Flow Control
+
+The SDK uses bounded channels to prevent memory exhaustion:
+
+- **Event channel**: 1024 message buffer (configurable)
+- **Overflow policy**: Newest messages dropped when full
+- **Detection**: `Event::BufferOverflow` emitted when drops occur
+
+If your handler can't keep up with market data, you'll receive overflow events rather than unbounded memory growth. This is critical for high-frequency symbols like BTC/USD during volatile periods.
+
+```rust
+// Monitor for backpressure
+match event {
+    Event::BufferOverflow { dropped_count } => {
+        warn!("Dropped {} messages - handler too slow", dropped_count);
+    }
+    _ => { /* normal processing */ }
+}
+```
 
 ### WASM Compatibility
 

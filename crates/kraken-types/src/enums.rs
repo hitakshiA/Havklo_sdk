@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 /// WebSocket channel types
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum Channel {
     /// Ticker channel - price and volume updates
     Ticker,

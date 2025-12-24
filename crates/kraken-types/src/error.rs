@@ -7,6 +7,7 @@ use crate::error_codes::{KrakenApiError as ParsedApiError, KrakenErrorCode, Reco
 
 /// Main error type for Havklo SDK operations
 #[derive(Error, Debug, Clone)]
+#[non_exhaustive]
 pub enum KrakenError {
     // === Connection Errors ===
     /// Failed to establish WebSocket connection

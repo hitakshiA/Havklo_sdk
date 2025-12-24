@@ -15,10 +15,15 @@ members = [
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.70"
 license = "MIT"
 authors = ["Hitakshi Arora"]
 repository = "https://github.com/hitakshiA/Havklo_sdk"
+documentation = "https://docs.rs/kraken-sdk"
+homepage = "https://github.com/hitakshiA/Havklo_sdk"
 description = "Production-grade Rust SDK for Kraken's WebSocket API v2"
+keywords = ["kraken", "websocket", "trading", "cryptocurrency", "orderbook"]
+categories = ["api-bindings", "asynchronous", "web-programming::websocket"]
 
 [workspace.dependencies]
 # Serialization

@@ -1051,6 +1051,7 @@ pub type BalancesMessage = ChannelMessage<WalletData>;
 
 /// Parsed message from WebSocket
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum WsMessage {
     /// Method response (subscribe, unsubscribe, pong, trading responses)
     Method(MethodResponse),

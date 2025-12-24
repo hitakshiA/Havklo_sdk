@@ -116,3 +116,41 @@ jobs:
 
       - name: Run benchmarks (compile only)
         run: cargo bench --workspace --no-run
+
+  msrv:
+    name: MSRV (1.70)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust 1.70
+        uses: dtolnay/rust-action@1.70.0
+
+      - name: Check MSRV
+        run: cargo check --workspace --all-features
+
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+
+      - name: Build docs
+        run: cargo doc --workspace --no-deps
+        env:
+          RUSTDOCFLAGS: -D warnings
+
+  package:
+    name: Package Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+
+      - name: Check packaging
+        run: cargo package -p kraken-types --allow-dirty

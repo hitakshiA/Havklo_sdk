@@ -738,6 +738,10 @@ impl KrakenConnection {
                 WsMessage::Unknown(_) => {
                     debug!("Unknown message: {}", text);
                 }
+                // Required for #[non_exhaustive] - handle future variants
+                _ => {
+                    debug!("Unhandled message variant");
+                }
             },
             Err(e) => {
                 warn!("Failed to parse message: {} - {}", e, text);
