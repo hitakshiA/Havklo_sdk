@@ -1,5 +1,8 @@
 # Havklo SDK
 
+[![Crates.io](https://img.shields.io/crates/v/kraken-sdk.svg)](https://crates.io/crates/kraken-sdk)
+[![docs.rs](https://docs.rs/kraken-sdk/badge.svg)](https://docs.rs/kraken-sdk)
+[![npm](https://img.shields.io/npm/v/@havklo/kraken-wasm.svg)](https://www.npmjs.com/package/@havklo/kraken-wasm)
 [![CI](https://github.com/hitakshiA/Havklo_sdk/workflows/CI/badge.svg)](https://github.com/hitakshiA/Havklo_sdk/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Rust](https://img.shields.io/badge/rust-1.70%2B-orange.svg)](https://www.rust-lang.org/)
@@ -91,7 +94,7 @@ Add to `Cargo.toml`:
 
 ```toml
 [dependencies]
-kraken-sdk = { git = "https://github.com/hitakshiA/Havklo_sdk" }
+kraken-sdk = "0.1"
 tokio = { version = "1", features = ["full"] }
 ```
 
@@ -431,13 +434,21 @@ let config = ConnectionConfig::new()
 
 ### Browser Integration (WASM)
 
+Install from npm:
+
+```bash
+npm install @havklo/kraken-wasm
+```
+
+Or build from source:
+
 ```bash
 cd crates/kraken-wasm
 wasm-pack build --target web
 ```
 
 ```javascript
-import init, { WasmOrderbook } from './pkg/kraken_wasm.js';
+import init, { WasmOrderbook } from '@havklo/kraken-wasm';
 
 await init();
 const book = new WasmOrderbook("BTC/USD", 10);
