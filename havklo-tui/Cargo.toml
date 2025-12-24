@@ -3,8 +3,9 @@ name = "havklo-tui"
 version = "0.1.0"
 edition = "2021"
 description = "Stunning terminal UI for Havklo SDK - Real-time Kraken market data"
-authors = ["Havklo"]
+authors = ["Hitakshi Arora"]
 license = "MIT OR Apache-2.0"
+repository = "https://github.com/hitakshiA/Havklo_sdk"
 
 [[bin]]
 name = "havklo"

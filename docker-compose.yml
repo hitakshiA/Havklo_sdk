@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  havklo-tui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: havklo-tui
+    stdin_open: true
+    tty: true
+    environment:
+      - TERM=xterm-256color
+    # Network required for WebSocket connection
+    network_mode: host

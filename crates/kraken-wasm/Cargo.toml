@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
+repository.workspace = true
 description = "WASM bindings for Kraken orderbook engine"
 
 [lib]
@@ -30,4 +31,4 @@ wasm-opt = false
 
 # NPM package configuration
 [package.metadata.wasm-pack]
-name = "@kraken-forge/wasm"
+name = "@havklo/kraken-wasm"

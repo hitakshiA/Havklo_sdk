@@ -14,8 +14,8 @@ Thank you for your interest in contributing to the Havklo SDK! This document pro
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/havklo-sdk.git
-cd havklo-sdk
+git clone https://github.com/hitakshiA/Havklo_sdk.git
+cd Havklo_sdk
 
 # Build all crates
 cargo build --workspace
