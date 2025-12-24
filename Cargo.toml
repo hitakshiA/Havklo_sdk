@@ -74,12 +74,12 @@ web-sys = { version = "0.3", features = [
 ] }
 
 # Internal crates
-kraken-types = { path = "crates/kraken-types" }
-kraken-book = { path = "crates/kraken-book" }
-kraken-ws = { path = "crates/kraken-ws" }
-kraken-auth = { path = "crates/kraken-auth" }
-kraken-futures-ws = { path = "crates/kraken-futures-ws" }
-kraken-sdk = { path = "crates/kraken-sdk" }
+kraken-types = { version = "0.1.0", path = "crates/kraken-types" }
+kraken-book = { version = "0.1.0", path = "crates/kraken-book" }
+kraken-ws = { version = "0.1.0", path = "crates/kraken-ws" }
+kraken-auth = { version = "0.1.0", path = "crates/kraken-auth" }
+kraken-futures-ws = { version = "0.1.0", path = "crates/kraken-futures-ws" }
+kraken-sdk = { version = "0.1.0", path = "crates/kraken-sdk" }
 
 # Benchmarking
 criterion = "0.5"
