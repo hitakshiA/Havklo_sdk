@@ -369,6 +369,8 @@ console.log("Spread:", book.spread());
 
 ## Examples
 
+All examples connect to **live Kraken WebSocket APIs** for real market data.
+
 ```bash
 # Basic ticker streaming
 cargo run --example simple_ticker
@@ -376,21 +378,49 @@ cargo run --example simple_ticker
 # L2 orderbook with checksum validation
 cargo run --example orderbook_stream
 
-# Multiple symbols
+# Multiple symbols monitoring
 cargo run --example multi_symbol
 
-# Futures perpetuals
+# Futures perpetuals (funding rates, mark prices)
 cargo run --example futures_stream
 
 # L3 market making simulation
 cargo run --example market_maker
 
-# Reconnection handling
+# Reconnection with exponential backoff
 cargo run --example advanced_reconnect
+
+# Stream API with futures::StreamExt
+cargo run --example stream_api
+
+# Observability hooks for monitoring
+cargo run --example observability_hooks
+
+# Structured error handling patterns
+cargo run --example error_handling
+
+# Graceful shutdown with Ctrl+C
+cargo run --example graceful_shutdown
 
 # Full SDK validation against live Kraken
 cargo run --example live_validation
 ```
+
+### Example Coverage
+
+| Example | Features Demonstrated |
+|---------|----------------------|
+| `simple_ticker` | Basic connection, events, `tokio::select!`, shutdown |
+| `orderbook_stream` | L2 orderbook, checksum validation, depth levels |
+| `multi_symbol` | Multi-symbol streaming, divergence detection |
+| `futures_stream` | Futures WS, perpetuals, funding rates |
+| `market_maker` | L3 orderbook, queue position, imbalance, VWAP |
+| `advanced_reconnect` | Reconnection config, backoff, circuit breaker |
+| `stream_api` | `impl Stream` trait, `StreamExt`, async patterns |
+| `observability_hooks` | `Hooks` API for metrics/logging integration |
+| `error_handling` | `KrakenError`, recovery strategies, API error parsing |
+| `graceful_shutdown` | Signal handling, clean disconnection |
+| `live_validation` | Full SDK validation with real Kraken data |
 
 ## Testing
 
