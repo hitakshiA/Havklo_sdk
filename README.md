@@ -604,6 +604,9 @@ cargo run --example live_validation
 - Rust 1.70+
 - For WASM: `wasm-pack` and `wasm32-unknown-unknown` target
 
+   ##The entire documentation website specifically for people who want to use this sdk to build apps
+  [Link](https://miny.mintlify.app)
+
 ## License
 
 MIT License. See [LICENSE](LICENSE) for details.
