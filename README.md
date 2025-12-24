@@ -1,6 +1,6 @@
 # Havklo SDK
 
-[![CI](https://github.com/havklo/havklo-sdk/workflows/CI/badge.svg)](https://github.com/havklo/havklo-sdk/actions)
+[![CI](https://github.com/hitakshiA/Havklo_sdk/workflows/CI/badge.svg)](https://github.com/hitakshiA/Havklo_sdk/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Rust](https://img.shields.io/badge/rust-1.70%2B-blue.svg)](https://www.rust-lang.org)
 
@@ -59,7 +59,7 @@ Add to `Cargo.toml`:
 
 ```toml
 [dependencies]
-kraken-sdk = { git = "https://github.com/havklo/kraken-sdk" }
+kraken-sdk = { git = "https://github.com/hitakshiA/Havklo_sdk" }
 tokio = { version = "1", features = ["full"] }
 ```
 
@@ -385,6 +385,18 @@ if error.is_retryable() {
     tokio::time::sleep(delay).await;
 }
 ```
+
+## Dependencies
+
+The SDK is designed with minimal dependencies for each use case:
+
+| Crate | Dependencies | Use Case |
+|-------|-------------|----------|
+| `kraken-types` | 28 | Shared types only |
+| `kraken-book` | 35 | WASM orderbook engine |
+| `kraken-sdk` | 268 | Full async SDK |
+
+The full SDK includes async runtime (tokio), networking, and observability. For browser/WASM usage, only `kraken-book` (35 deps) is needed.
 
 ## Requirements
 

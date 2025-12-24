@@ -456,4 +456,127 @@ mod tests {
             .validate()
             .is_ok());
     }
+
+    #[test]
+    fn test_ohlc_intervals() {
+        assert_eq!(OhlcInterval::M1.as_minutes(), 1);
+        assert_eq!(OhlcInterval::M5.as_minutes(), 5);
+        assert_eq!(OhlcInterval::M15.as_minutes(), 15);
+        assert_eq!(OhlcInterval::M30.as_minutes(), 30);
+        assert_eq!(OhlcInterval::H1.as_minutes(), 60);
+        assert_eq!(OhlcInterval::H4.as_minutes(), 240);
+        assert_eq!(OhlcInterval::D1.as_minutes(), 1440);
+        assert_eq!(OhlcInterval::W1.as_minutes(), 10080);
+        assert_eq!(OhlcInterval::D15.as_minutes(), 21600);
+    }
+
+    #[test]
+    fn test_builder_default_values() {
+        let builder = KrakenClientBuilder::new(["BTC/USD"]);
+        assert_eq!(builder.depth, Depth::D10);
+        assert_eq!(builder.endpoint, Endpoint::Public);
+        assert!(builder.subscribe_book); // Book is enabled by default
+        assert!(!builder.subscribe_ticker);
+        assert!(!builder.subscribe_trade);
+        assert!(builder.l3_symbols.is_empty());
+        assert!(builder.ohlc_intervals.is_empty());
+    }
+
+    #[test]
+    fn test_builder_multiple_symbols() {
+        let builder = KrakenClientBuilder::new(["BTC/USD", "ETH/USD", "SOL/USD"])
+            .with_symbol("XRP/USD")
+            .with_symbols(["DOT/USD", "LINK/USD"]);
+
+        assert_eq!(builder.symbols.len(), 6);
+        assert!(builder.symbols.contains(&"BTC/USD".to_string()));
+        assert!(builder.symbols.contains(&"LINK/USD".to_string()));
+    }
+
+    #[test]
+    fn test_builder_depth_levels() {
+        let builder = KrakenClientBuilder::new(["BTC/USD"]).with_depth(Depth::D100);
+        assert_eq!(builder.depth, Depth::D100);
+
+        let builder = KrakenClientBuilder::new(["BTC/USD"]).with_depth(Depth::D500);
+        assert_eq!(builder.depth, Depth::D500);
+
+        let builder = KrakenClientBuilder::new(["BTC/USD"]).with_depth(Depth::D1000);
+        assert_eq!(builder.depth, Depth::D1000);
+    }
+
+    #[test]
+    fn test_builder_channel_subscriptions() {
+        let builder = KrakenClientBuilder::new(["BTC/USD"])
+            .with_book(true)
+            .with_ticker(true)
+            .with_trade(true);
+
+        assert!(builder.subscribe_book);
+        assert!(builder.subscribe_ticker);
+        assert!(builder.subscribe_trade);
+
+        // Test toggling off
+        let builder = builder.with_book(false);
+        assert!(!builder.subscribe_book);
+    }
+
+    #[test]
+    fn test_builder_multiple_ohlc_intervals() {
+        let builder = KrakenClientBuilder::new(["BTC/USD"])
+            .with_ohlc(OhlcInterval::M1)
+            .with_ohlc(OhlcInterval::M5)
+            .with_ohlc(OhlcInterval::H1);
+
+        assert_eq!(builder.ohlc_intervals.len(), 3);
+        assert!(builder.ohlc_intervals.contains(&OhlcInterval::M1));
+        assert!(builder.ohlc_intervals.contains(&OhlcInterval::M5));
+        assert!(builder.ohlc_intervals.contains(&OhlcInterval::H1));
+    }
+
+    #[test]
+    fn test_builder_has_subscriptions() {
+        // Default has book enabled
+        let builder = KrakenClientBuilder::new(["BTC/USD"]);
+        assert!(builder.has_subscriptions());
+
+        // Disabling book means no subscriptions
+        let builder = builder.with_book(false);
+        assert!(!builder.has_subscriptions());
+
+        // Adding ticker enables subscriptions
+        let builder = builder.with_ticker(true);
+        assert!(builder.has_subscriptions());
+
+        // OHLC also counts as subscription
+        let builder = KrakenClientBuilder::new(["BTC/USD"])
+            .with_book(false)
+            .with_ohlc(OhlcInterval::M1);
+        assert!(builder.has_subscriptions());
+    }
+
+    #[test]
+    fn test_config_error_display() {
+        let err = ConfigError::NoSymbols;
+        assert_eq!(err.to_string(), "at least one symbol must be specified");
+
+        let err = ConfigError::InvalidSymbol { symbol: "BAD".into() };
+        assert!(err.to_string().contains("BAD"));
+
+        let err = ConfigError::L3RequiresLevel3Endpoint;
+        assert!(err.to_string().contains("Level3"));
+    }
+
+    #[test]
+    fn test_symbol_validation_formats() {
+        // Valid formats
+        assert!(KrakenClientBuilder::new(["BTC/USD"]).validate().is_ok());
+        assert!(KrakenClientBuilder::new(["ETH/EUR"]).validate().is_ok());
+        assert!(KrakenClientBuilder::new(["SOL/USDT"]).validate().is_ok());
+
+        // Invalid formats
+        assert!(KrakenClientBuilder::new(["BTCUSD"]).validate().is_err());
+        assert!(KrakenClientBuilder::new(["BTC"]).validate().is_err());
+        assert!(KrakenClientBuilder::new([""]).validate().is_err());
+    }
 }
