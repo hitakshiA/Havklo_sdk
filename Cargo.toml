@@ -79,7 +79,7 @@ kraken-book = { version = "0.1.0", path = "crates/kraken-book" }
 kraken-ws = { version = "0.1.0", path = "crates/kraken-ws" }
 kraken-auth = { version = "0.1.0", path = "crates/kraken-auth" }
 kraken-futures-ws = { version = "0.1.0", path = "crates/kraken-futures-ws" }
-kraken-sdk = { version = "0.1.0", path = "crates/kraken-sdk" }
+kraken-sdk = { version = "0.1.1", path = "crates/kraken-sdk" }
 
 # Benchmarking
 criterion = "0.5"

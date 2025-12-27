@@ -1,10 +1,11 @@
 [package]
 name = "kraken-sdk"
-version.workspace = true
+version = "0.1.1"
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
+readme = "README.md"
 description = "High-level SDK for Kraken WebSocket API v2"
 
 [features]
