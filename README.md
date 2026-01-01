@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Rust](https://img.shields.io/badge/rust-1.70%2B-orange.svg)](https://www.rust-lang.org/)
 
-A high-performance, modular Rust SDK for Kraken's WebSocket APIs. Built for institutional-grade algorithmic trading, market making, and real-time data streaming with sub-microsecond orderbook operations.
+A high-performance, modular Rust SDK for Kraken's WebSocket APIs. Built for institutional-grade algorithmic trading, market making, and real-time data streaming with sub-microsecond orderbook operations.Engineered for builders, not just traders: A modular, unopinionated foundation designed to let you architect the strategy
 
 The architecture decouples core market logic from the networking layer, allowing the orderbook engine (`kraken-book`) to compile to WebAssembly (WASM). This enables the exact same validation logic used in high-frequency backend systems to run with near-native performance in web browsers.
 
